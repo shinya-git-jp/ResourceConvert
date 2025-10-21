@@ -1,29 +1,28 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
 
 const ErrorMessageXmlConvert: React.FC = () => {
-    const [messages, setMessages] = useState<ErrorMessage[]>([]);
-    const [selectedLang, setSelectedLang] = useState<keyof ErrorMessage>("country1");
+    const location = useLocation();
     const navigate = useNavigate();
+    const initialMessages: ErrorMessage[] = (location.state as { messages: ErrorMessage[] })?.messages || []; 
+    
+    const [messages] = useState<ErrorMessage[]>(initialMessages); 
+    const [selectedLang, setSelectedLang] = useState<keyof ErrorMessage>("country1");
 
-    // プレビュー用に全件取得
-    useEffect(() => {
-        fetch("http://localhost:8080/api/error-messages")
-            .then((res) => res.json())
-            .then((data) => setMessages(data))
-            .catch((err) => console.error(err));
-    }, []);
 
-    // XML文字列を生成（プレビュー用）
     const generateXmlPreview = () => {
         const xmlItems = messages.map((msg) => {
-            const type =
-                msg.errorType === "1"
-                    ? "error"
-                    : msg.errorType === "2"
-                        ? "warning"
-                        : "info";
+            let type: string;
+            if (msg.errorType === "1") {
+                type = "error";
+            } else if (msg.errorType === "2") {
+                type = "warning";
+            } else if (msg.errorType === "3" || msg.errorType === "4") {
+                type = "info";
+            } else {
+                type = "info"; //デフォルト
+            }
 
             const messageText = msg[selectedLang] || "";
             return `  <error code="${msg.errorNo}">
@@ -40,8 +39,8 @@ const ErrorMessageXmlConvert: React.FC = () => {
     // バックエンドでXML生成してダウンロード
     const handleDownload = async () => {
         const filename = prompt("ファイル名を入力してください", "output.xml") || "output.xml";
-
         try {
+            // 現在のAPIエンドポイント (固定DB)
             const response = await fetch(
                 `http://localhost:8080/api/error-messages/xml?lang=${selectedLang}`
             );
@@ -64,8 +63,9 @@ const ErrorMessageXmlConvert: React.FC = () => {
     return (
         <div style={{ padding: "20px" }}>
             <h2>変換結果</h2>
-            <button onClick={handleDownload} style={{ marginLeft: "20px" }}>
-                ダウンロード
+            {/* ダウンロードボタンは一旦残しますが、上記の注意点があります */}
+            <button onClick={handleDownload} style={{ marginLeft: "20px" }}> 
+                ダウンロード (※固定DB) 
             </button>
             <button onClick={() => navigate(-1)}>戻る</button>
             <div style={{ marginBottom: "10px" }}>
@@ -81,14 +81,13 @@ const ErrorMessageXmlConvert: React.FC = () => {
                     <option value="country4">Country4</option>
                     <option value="country5">Country5</option>
                 </select>
-
-
             </div>
 
             <h3>プレビュー</h3>
             <textarea
                 readOnly
-                value={generateXmlPreview()}
+                // generateXmlPreview は location.state からの messages を使う
+                value={generateXmlPreview()} 
                 rows={30}
                 cols={120}
                 style={{ whiteSpace: "pre-wrap" }}

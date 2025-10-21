@@ -67,7 +67,7 @@ const ErrorMessageDisplay: React.FC = () => {
 
 
   const handleNavigateToConvert = () => {
-    navigate("/error-messages-xml");
+    navigate("/error-messages-xml", { state: { messages: messages } });
   };
 
 
