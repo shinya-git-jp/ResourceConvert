@@ -24,32 +24,37 @@ export const MessageResourceConvert = () => {
   // ダウンロード用バックエンド呼び出し
   const handleDownload = async () => {
   try {
-    const response = await fetch("http://localhost:8080/api/labels/properties", {
+    const response = await fetch("http://localhost:8080/api/labels/properties/download", { 
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(labels.map(label => ({
-        ...label,
-        country1: label[selectedCountry] // 選択中の言語を右辺にセット
-      })))
+      body: JSON.stringify({ 
+          labels: labels,       
+          lang: selectedCountry
+       }) 
     });
 
-    if (!response.ok) throw new Error("生成失敗");
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`プロパティ生成失敗 (HTTP ${response.status}): ${errorText}`);
+    }
 
-    const text = await response.text();
+    const text = await response.text(); 
 
-    // ファイル名をユーザーに入力させる
     const filename = prompt("ファイル名を入力してください", "output.properties") || "output.properties";
 
-    const blob = new Blob([text], { type: "text/plain" });
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, text], { type: "text/plain;charset=utf-8" }); 
+
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = filename; // 入力値をファイル名に
+    a.download = filename.endsWith(".properties") ? filename : filename + ".properties"; 
     a.click();
     window.URL.revokeObjectURL(url);
-  } catch (err) {
+
+  } catch (err: any) {
     console.error(err);
-    alert("プロパティ生成に失敗しました");
+    alert(`プロパティ生成に失敗しました: ${err.message}`); 
   }
 };
 

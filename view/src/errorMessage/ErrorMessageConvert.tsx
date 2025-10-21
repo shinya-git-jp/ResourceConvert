@@ -5,9 +5,9 @@ import type { ErrorMessage } from "../types/ErrorMessage";
 const ErrorMessageXmlConvert: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const initialMessages: ErrorMessage[] = (location.state as { messages: ErrorMessage[] })?.messages || []; 
-    
-    const [messages] = useState<ErrorMessage[]>(initialMessages); 
+    const initialMessages: ErrorMessage[] = (location.state as { messages: ErrorMessage[] })?.messages || [];
+
+    const [messages] = useState<ErrorMessage[]>(initialMessages);
     const [selectedLang, setSelectedLang] = useState<keyof ErrorMessage>("country1");
 
 
@@ -40,12 +40,24 @@ const ErrorMessageXmlConvert: React.FC = () => {
     const handleDownload = async () => {
         const filename = prompt("ファイル名を入力してください", "output.xml") || "output.xml";
         try {
-            // 現在のAPIエンドポイント (固定DB)
             const response = await fetch(
-                `http://localhost:8080/api/error-messages/xml?lang=${selectedLang}`
+                "http://localhost:8080/api/error-messages/xml/download",
+                {
+                    method: "POST", // POSTメソッドに変更
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        messages: messages,
+                        lang: selectedLang
+                    })
+                }
             );
 
-            if (!response.ok) throw new Error("XML生成に失敗");
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`XML生成失敗 (HTTP ${response.status}): ${errorText}`);
+            }
 
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -54,9 +66,10 @@ const ErrorMessageXmlConvert: React.FC = () => {
             a.download = filename.endsWith(".xml") ? filename : filename + ".xml";
             a.click();
             window.URL.revokeObjectURL(url);
-        } catch (err) {
+
+        } catch (err: any) {
             console.error(err);
-            alert("XMLダウンロードに失敗しました");
+            alert(`XMLダウンロードに失敗しました: ${err.message}`);
         }
     };
 
@@ -64,8 +77,8 @@ const ErrorMessageXmlConvert: React.FC = () => {
         <div style={{ padding: "20px" }}>
             <h2>変換結果</h2>
             {/* ダウンロードボタンは一旦残しますが、上記の注意点があります */}
-            <button onClick={handleDownload} style={{ marginLeft: "20px" }}> 
-                ダウンロード (※固定DB) 
+            <button onClick={handleDownload} style={{ marginLeft: "20px" }}>
+                ダウンロード
             </button>
             <button onClick={() => navigate(-1)}>戻る</button>
             <div style={{ marginBottom: "10px" }}>
@@ -87,7 +100,7 @@ const ErrorMessageXmlConvert: React.FC = () => {
             <textarea
                 readOnly
                 // generateXmlPreview は location.state からの messages を使う
-                value={generateXmlPreview()} 
+                value={generateXmlPreview()}
                 rows={30}
                 cols={120}
                 style={{ whiteSpace: "pre-wrap" }}
