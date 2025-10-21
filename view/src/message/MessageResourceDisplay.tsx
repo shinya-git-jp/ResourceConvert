@@ -38,9 +38,9 @@ function MessageResourceDisplay() {
     if (saved) {
       const configs: DbConfig[] = JSON.parse(saved);
       setDbConfigs(configs);
-      if (configs.length > 0) {
-        setSelectedConfigName(configs[0].name); // デフォルトで最初の設定を選択
-      }
+      // if (configs.length > 0) {
+      //   setSelectedConfigName(configs[0].name); // デフォルトで最初の設定を選択
+      // }
     }
   }, []);
 

@@ -1,5 +1,30 @@
 import React, { useState, useEffect } from "react";
 import type { DbConfig } from "../types/DbConfig";
+import {
+  Box,
+  Button,
+  Container,
+  Grid,
+  Paper,
+  TextField,
+  Typography,
+  List,
+  ListItemButton,
+  ListItemText,
+  IconButton,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  InputAdornment,
+  Tabs,
+  Tab,
+} from "@mui/material";
+
+
+import DeleteIcon from "@mui/icons-material/Delete";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 const LOCAL_STORAGE_KEY = "dbConfigs";
 
@@ -14,8 +39,9 @@ const DbConnection: React.FC = () => {
     username: "",
     password: "",
   });
+  const [showPassword, setShowPassword] = useState(false); 
+  const [currentTab, setCurrentTab] = useState(0);
 
-  // 初期ロード
   useEffect(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
@@ -28,108 +54,237 @@ const DbConnection: React.FC = () => {
       alert("設定名を入力してください");
       return;
     }
-
-    const updatedConfigs = [...configs.filter(c => c.name !== currentConfig.name), currentConfig];
+    const updatedConfigs = [
+      ...configs.filter((c) => c.name !== currentConfig.name),
+      currentConfig,
+    ];
     setConfigs(updatedConfigs);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedConfigs));
     alert("保存しました");
   };
 
   const handleSelect = (name: string) => {
-    const selected = configs.find(c => c.name === name);
+    const selected = configs.find((c) => c.name === name);
     if (selected) setCurrentConfig(selected);
   };
 
-  const handleDelete = (name: string) => {
-  if (!window.confirm(`${name} を削除しますか？`)) return;
-  const updatedConfigs = configs.filter(c => c.name !== name);
-  setConfigs(updatedConfigs);
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedConfigs));
+  const handleDelete = (e: React.MouseEvent, name: string) => {
+    e.stopPropagation();
+    if (!window.confirm(`${name} を削除しますか？`)) return;
+    const updatedConfigs = configs.filter((c) => c.name !== name);
+    setConfigs(updatedConfigs);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedConfigs));
+    // if (currentConfig.name === name) {
+    //   handleNewSetting();
+    // }
   };
 
   const handleTestConnection = async () => {
-  try {
-    const response = await fetch("http://localhost:8080/api/db/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(currentConfig),
-    });
-
-    const result = await response.text();
-    alert(result);
-  } catch (error) {
-    alert("接続確認中にエラーが発生しました");
-    console.error(error);
-  }
+    try {
+      const response = await fetch("http://localhost:8080/api/db/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(currentConfig),
+      });
+      const result = await response.text();
+      alert(result);
+    } catch (error) {
+      alert("接続確認中にエラーが発生しました");
+      console.error(error);
+    }
   };
 
+  // const handleNewSetting = () => {
+  //   setCurrentConfig({
+  //     name: "",
+  //     dbType: "MySQL",
+  //     host: "",
+  //     port: "" as any,
+  //     dbName: "",
+  //     username: "",
+  //     password: "",
+  //   });
+  // };
+
+  // フォーム入力の汎用ハンドラ
+  const handleChange = (
+  e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> |
+  { target: { name: string; value: unknown } }
+) => {
+  const { name, value } = e.target;
+
+  setCurrentConfig({
+    ...currentConfig,
+    [name]: name === "port" ? Number(value) : value,
+  });
+};
+
+  const renderForm = () => (
+    <Paper elevation={3} sx={{ p: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+        }}
+      >
+        <Typography variant="h6">
+          {currentConfig.name ? "データベース接続設定" : "データベース接続設定"}
+        </Typography>
+        <Button variant="contained" onClick={handleSave}>
+          保存
+        </Button>
+      </Box>
+
+      <Tabs value={currentTab} onChange={(_, newValue) => setCurrentTab(newValue)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label="データベース設定" />
+        {/* <Tab label="言語設定" disabled />
+        <Tab label="出力設定" disabled /> */}
+      </Tabs>
+
+      {currentTab === 0 && (
+        <Box component="form" noValidate autoComplete="off">
+          <TextField
+            fullWidth
+            margin="normal"
+            label="設定名"
+            name="name"
+            value={currentConfig.name}
+            onChange={handleChange}
+          />
+          
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="db-type-label">データベースタイプ</InputLabel>
+            <Select
+              labelId="db-type-label"
+              label="データベースタイプ"
+              name="dbType"
+              value={currentConfig.dbType}
+              onChange={handleChange as any} // Select用
+            >
+              <MenuItem value="MySQL">MySQL</MenuItem>
+              <MenuItem value="PostgreSQL">PostgreSQL</MenuItem>
+              <MenuItem value="Oracle">Oracle</MenuItem>
+              <MenuItem value="SQLServer">SQLServer</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Grid container spacing={2}>
+            <Grid size={{xs:8}}>
+              <TextField
+                fullWidth
+                margin="normal"
+                label="ホスト"
+                name="host"
+                value={currentConfig.host}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid size={{xs:4}}>
+              <TextField
+                fullWidth
+                margin="normal"
+                label="ポート"
+                name="port"
+                type="number"
+                value={currentConfig.port}
+                onChange={handleChange}
+              />
+            </Grid>
+          </Grid>
+          
+          <TextField
+            fullWidth
+            margin="normal"
+            label="DB名 / スキーマ"
+            name="dbName"
+            value={currentConfig.dbName}
+            onChange={handleChange}
+          />
+          
+          <TextField
+            fullWidth
+            margin="normal"
+            label="ユーザー名"
+            name="username"
+            value={currentConfig.username}
+            onChange={handleChange}
+          />
+          
+          <TextField
+            fullWidth
+            margin="normal"
+            label="パスワード"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            value={currentConfig.password}
+            onChange={handleChange}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={() => setShowPassword(!showPassword)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          <Button
+            variant="outlined"
+            onClick={handleTestConnection}
+            sx={{ mt: 2 }}
+          >
+            接続確認
+          </Button>
+        </Box>
+      )}
+    </Paper>
+  );
+
   return (
-    <div style={{ padding: "20px" }}>
-      <h2>DB接続設定</h2>
+    <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Grid container spacing={3}>
+        <Grid size={{xs:8, md:4}}>
+          <Typography variant="h6" gutterBottom>
+            保存済み設定
+          </Typography>
+          {/* <Button onClick={handleNewSetting} fullWidth variant="outlined" sx={{ mb: 1 }}>
+            ＋ 新規作成
+          </Button> */}
+          <Paper sx={{ maxHeight: 500, overflow: 'auto' }}>
+            <List component="nav">
+              {configs.map((c) => (
+                <ListItemButton
+                  key={c.name}
+                  selected={currentConfig.name === c.name}
+                  onClick={() => handleSelect(c.name)}
+                >
+                  <ListItemText primary={c.name} />
+                  <IconButton
+                    edge="end"
+                    aria-label="delete"
+                    onClick={(e) => handleDelete(e, c.name)}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </ListItemButton>
+              ))}
+            </List>
+          </Paper>
+        </Grid>
 
-      <div style={{ marginBottom: "10px" }}>
-        <label>設定名: 
-          <input type="text" value={currentConfig.name} onChange={e => setCurrentConfig({...currentConfig, name: e.target.value})} />
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label>DBタイプ:
-          <select value={currentConfig.dbType} onChange={e => setCurrentConfig({...currentConfig, dbType: e.target.value as "MySQL" | "PostgreSQL"})}>
-            <option value="MySQL">MySQL</option>
-            <option value="PostgreSQL">PostgreSQL</option>
-            <option value="Oracle">Oracle</option>
-            <option value="SQLServer">SQLServer</option>
-          </select>
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label>ホスト: 
-          <input type="text" value={currentConfig.host} onChange={e => setCurrentConfig({...currentConfig, host: e.target.value})} />
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label>ポート: 
-          <input type="number" value={currentConfig.port} onChange={e => setCurrentConfig({...currentConfig, port: parseInt(e.target.value)})} />
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label>DB名: 
-          <input type="text" value={currentConfig.dbName} onChange={e => setCurrentConfig({...currentConfig, dbName: e.target.value})} />
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label>ユーザー名: 
-          <input type="text" value={currentConfig.username} onChange={e => setCurrentConfig({...currentConfig, username: e.target.value})} />
-        </label>
-      </div>
-
-      <div style={{ marginBottom: "10px" }}>
-        <label>パスワード: 
-          <input type="password" value={currentConfig.password} onChange={e => setCurrentConfig({...currentConfig, password: e.target.value})} />
-        </label>
-      </div>
-      
-      <button onClick={handleTestConnection}>接続確認</button>
-      <button onClick={handleSave}>保存</button>
-      
-      
-
-      <div style={{ marginTop: "20px" }}>
-        <h3>保存済み設定</h3>
-        {configs.map(c => (
-          <div key={c.name}>
-            <span>{c.name}</span>
-            <button onClick={() => handleSelect(c.name)} style={{ marginLeft: "10px" }}>選択</button>
-            <button onClick={() => handleDelete(c.name)} style={{ marginLeft: "10px" }}>削除</button>
-          </div>
-        ))}
-      </div>
-    </div>
+        <Grid size ={{xs:12,md:8}}>
+          {renderForm()}
+        </Grid>
+      </Grid>
+    </Container>
   );
 };
 

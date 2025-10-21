@@ -23,7 +23,10 @@ const Home: React.FC = () => {
   return (
     <Container>
       <Box sx={{ textAlign: "center", marginTop: "20px" }}>
-        <Typography variant="h4" component="h2" gutterBottom>
+        <Typography variant="h3" component="h2" gutterBottom color="primary">
+          Resource Convert
+        </Typography>
+        <Typography variant="h5" component="h2" gutterBottom>
           ようこそ
         </Typography>
         <Typography variant="body1">

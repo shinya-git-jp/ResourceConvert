@@ -33,7 +33,7 @@ const MainLayout: React.FC = () => {
   // メニュー項目と遷移先
   const menuItems = [
     { text: 'Home', icon: <HomeIcon />, path: '/' },
-    { text: 'DB接続設定', icon: <StorageIcon />, path: '/db-connection' },
+    { text: 'データベース接続設定', icon: <StorageIcon />, path: '/db-connection' },
     { text: 'メッセージリソース', icon: <MessageIcon />, path: '/message-resource' },
     { text: 'エラーメッセージリソース', icon: <ErrorIcon />, path: '/error-messages' },
   ];
