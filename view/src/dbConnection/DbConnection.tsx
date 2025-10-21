@@ -8,8 +8,8 @@ const DbConnection: React.FC = () => {
   const [currentConfig, setCurrentConfig] = useState<DbConfig>({
     name: "",
     dbType: "MySQL",
-    host: "localhost",
-    port: 13306,
+    host: "",
+    port: "" as any,
     dbName: "",
     username: "",
     password: "",
@@ -78,6 +78,8 @@ const DbConnection: React.FC = () => {
           <select value={currentConfig.dbType} onChange={e => setCurrentConfig({...currentConfig, dbType: e.target.value as "MySQL" | "PostgreSQL"})}>
             <option value="MySQL">MySQL</option>
             <option value="PostgreSQL">PostgreSQL</option>
+            <option value="Oracle">Oracle</option>
+            <option value="SQLServer">SQLServer</option>
           </select>
         </label>
       </div>
