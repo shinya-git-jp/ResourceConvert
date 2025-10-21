@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useState, useRef } from "react";
 import "../App.css";
 
+
 interface EditableLabel {
   objectID: string;
   categoryName: string;
