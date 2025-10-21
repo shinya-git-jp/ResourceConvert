@@ -1,6 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import "../App.css";
 
 interface EditableLabel {
@@ -20,6 +20,7 @@ export const MessageResourceConvert = () => {
   const initialLabels: EditableLabel[] = (location.state as { labels: EditableLabel[] })?.labels || [];
   const [labels] = useState<EditableLabel[]>(initialLabels);
   const [selectedCountry, setSelectedCountry] = useState<keyof EditableLabel>("country1");
+  const previewTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ダウンロード用バックエンド呼び出し
   const handleDownload = async () => {
@@ -58,12 +59,34 @@ export const MessageResourceConvert = () => {
   }
 };
 
+  const handleCopyPreview = () => {
+    if (previewTextareaRef.current) {
+      const textToCopy = previewTextareaRef.current.value;
+      navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+          alert('コピーしました');
+        })
+        .catch(err => {
+          console.error('コピーに失敗しました:', err);
+          alert('コピーに失敗しました。');
+        });
+    }
+  };
+
+  const generatePreviewText = () => {
+    return labels.map(label => {
+        const key = label.messageId || label.objectID;
+        const value = label[selectedCountry] || "";
+        return `${key}=${value}`;
+      }).join("\n");
+  }
+
   return (
     <div className="App">
       <h2>変換結果</h2>
       <button onClick={handleDownload}>ダウンロード</button>
-      <button onClick={() => navigate(-1)}>戻る</button>
-      <div style={{ marginBottom: "16px" }}>
+      <button onClick={() => navigate(-1)} style={{ marginLeft: "10px" }}>戻る</button>
+      <div style={{ marginBottom: "16px", marginTop: "16px" }}>
         表示言語:
         <select
           value={selectedCountry}
@@ -77,14 +100,17 @@ export const MessageResourceConvert = () => {
         </select>
       </div>
 
-      <h3>プレビュー</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+          <h3>プレビュー</h3>
+          <button onClick={handleCopyPreview} style={{ marginLeft: "10px" }}>
+              コピー
+          </button>
+      </div>
+
       <textarea
+        ref={previewTextareaRef}
         readOnly
-        value={labels.map(label => {
-          const key = label.messageId || label.objectID;
-          const value = label[selectedCountry] || "";
-          return `${key}=${value}`;
-        }).join("\n")}
+        value={generatePreviewText()}
         rows={50}
         cols={100}
         style={{ whiteSpace: "pre-wrap" }}

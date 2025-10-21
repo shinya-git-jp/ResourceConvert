@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
 
@@ -9,6 +9,7 @@ const ErrorMessageXmlConvert: React.FC = () => {
 
     const [messages] = useState<ErrorMessage[]>(initialMessages);
     const [selectedLang, setSelectedLang] = useState<keyof ErrorMessage>("country1");
+    const previewTextareaRef = useRef<HTMLTextAreaElement>(null);
 
 
     const generateXmlPreview = () => {
@@ -73,15 +74,26 @@ const ErrorMessageXmlConvert: React.FC = () => {
         }
     };
 
+    const handleCopyPreview = () => {
+        const textToCopy = generateXmlPreview(); 
+        navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+            alert('コピーしました');
+        })
+        .catch(err => {
+            console.error('コピーに失敗しました:', err);
+            alert('コピーに失敗しました。');
+        });
+    };
+
     return (
         <div style={{ padding: "20px" }}>
             <h2>変換結果</h2>
-            {/* ダウンロードボタンは一旦残しますが、上記の注意点があります */}
-            <button onClick={handleDownload} style={{ marginLeft: "20px" }}>
+            <button onClick={handleDownload} style={{ marginLeft: "10px" }}>
                 ダウンロード
             </button>
-            <button onClick={() => navigate(-1)}>戻る</button>
-            <div style={{ marginBottom: "10px" }}>
+            <button onClick={() => navigate(-1)} style={{ marginLeft: "10px" }}>戻る</button>
+            <div style={{ marginBottom: "10px", marginTop: "10px" }}>
                 表示言語:
                 <select
                     value={selectedLang}
@@ -96,10 +108,15 @@ const ErrorMessageXmlConvert: React.FC = () => {
                 </select>
             </div>
 
-            <h3>プレビュー</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+                <h3>プレビュー</h3>
+                <button onClick={handleCopyPreview} style={{ marginLeft: "10px" }}>
+                    コピー
+                </button>
+            </div>
             <textarea
+                ref={previewTextareaRef}
                 readOnly
-                // generateXmlPreview は location.state からの messages を使う
                 value={generateXmlPreview()}
                 rows={30}
                 cols={120}
