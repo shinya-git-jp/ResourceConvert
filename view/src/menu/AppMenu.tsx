@@ -67,6 +67,7 @@ const MainLayout: React.FC = () => {
         position="fixed"
         sx={{
           zIndex: (theme) => theme.zIndex.drawer + 1,
+          backgroundColor: '#4ab5e2ff',
         }}
       >
         <Toolbar>
@@ -79,6 +80,18 @@ const MainLayout: React.FC = () => {
           >
             <MenuIcon />
           </IconButton>
+
+          <Box
+            component="img"
+            src="/icon.png"
+            alt="icon"
+            sx={{
+              height: 40,
+              width: 40,
+              mr: 1.5,
+            }}
+          />
+
           <Typography variant="h6" noWrap component="div">
             Resource Convert
           </Typography>
@@ -111,7 +124,6 @@ const MainLayout: React.FC = () => {
       >
         <Toolbar /> {/* AppBarの高さ分だけスペースを空ける */}
         
-        {/* ★ここに各ページ（Home, DbConnectionなど）が描画されます★ */}
         <Outlet />
       </Box>
     </Box>

@@ -23,7 +23,17 @@ const Home: React.FC = () => {
   return (
     <Container>
       <Box sx={{ textAlign: "center", marginTop: "20px" }}>
-        <Typography variant="h3" component="h2" gutterBottom color="primary">
+        <Box
+          component="img"
+          src="/icon.png"
+          alt="icon"
+          sx={{
+            maxWidth: 200, 
+            height: 'auto',
+            mb: 2, 
+          }}
+        />
+        <Typography variant="h3" component="h2" gutterBottom color="#4ab5e2ff">
           Resource Convert
         </Typography>
         <Typography variant="h5" component="h2" gutterBottom>

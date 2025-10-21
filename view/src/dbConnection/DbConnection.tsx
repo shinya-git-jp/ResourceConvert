@@ -74,9 +74,9 @@ const DbConnection: React.FC = () => {
     const updatedConfigs = configs.filter((c) => c.name !== name);
     setConfigs(updatedConfigs);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedConfigs));
-    // if (currentConfig.name === name) {
-    //   handleNewSetting();
-    // }
+    if (currentConfig.name === name) {
+      handleNewSetting();
+    }
   };
 
   const handleTestConnection = async () => {
@@ -94,17 +94,17 @@ const DbConnection: React.FC = () => {
     }
   };
 
-  // const handleNewSetting = () => {
-  //   setCurrentConfig({
-  //     name: "",
-  //     dbType: "MySQL",
-  //     host: "",
-  //     port: "" as any,
-  //     dbName: "",
-  //     username: "",
-  //     password: "",
-  //   });
-  // };
+  const handleNewSetting = () => {
+    setCurrentConfig({
+      name: "",
+      dbType: "MySQL",
+      host: "",
+      port: "" as any,
+      dbName: "",
+      username: "",
+      password: "",
+    });
+  };
 
   // フォーム入力の汎用ハンドラ
   const handleChange = (
@@ -130,7 +130,7 @@ const DbConnection: React.FC = () => {
         }}
       >
         <Typography variant="h6">
-          {currentConfig.name ? "データベース接続設定" : "データベース接続設定"}
+          {currentConfig.name ? "データベース接続設定-修正" : "データベース接続設定-新規"}
         </Typography>
         <Button variant="contained" onClick={handleSave}>
           保存
@@ -255,9 +255,9 @@ const DbConnection: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             保存済み設定
           </Typography>
-          {/* <Button onClick={handleNewSetting} fullWidth variant="outlined" sx={{ mb: 1 }}>
-            ＋ 新規作成
-          </Button> */}
+          <Button onClick={handleNewSetting} fullWidth variant="outlined" sx={{ mb: 1 }}>
+            ＋ 新規
+          </Button>
           <Paper sx={{ maxHeight: 500, overflow: 'auto' }}>
             <List component="nav">
               {configs.map((c) => (
