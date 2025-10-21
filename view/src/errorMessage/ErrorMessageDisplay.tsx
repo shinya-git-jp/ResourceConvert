@@ -1,5 +1,3 @@
-// src/errorMessage/ErrorMessageDisplay.tsx
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
@@ -15,6 +13,9 @@ const ErrorMessageDisplay: React.FC = () => {
   // DB接続設定関連の state
   const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
+
+  // 選択状態を管理する State
+  const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
 
   // DB設定をローカルストレージから読み込む
   useEffect(() => {
@@ -38,6 +39,7 @@ const ErrorMessageDisplay: React.FC = () => {
 
     setLoading(true);
     setMessages([]); // クリア
+    setSelectedObjectIDs(new Set()); // 選択もクリア
 
     // APIエンドポイントを /api/error-messages/fetch に変更
     fetch("http://localhost:8080/api/error-messages/fetch", {
@@ -53,7 +55,7 @@ const ErrorMessageDisplay: React.FC = () => {
         }
         return response.json();
       })
-      .then((data) => {
+      .then((data: ErrorMessage[]) => {
         setMessages(data);
         setLoading(false);
       })
@@ -67,8 +69,40 @@ const ErrorMessageDisplay: React.FC = () => {
 
 
   const handleNavigateToConvert = () => {
-    navigate("/error-messages-xml", { state: { messages: messages } });
+    const selectedMessages = messages.filter(msg =>
+      selectedObjectIDs.has(msg.objectID)
+    );
+
+    if (selectedMessages.length === 0) {
+        alert("変換するデータが選択されていません");
+        return;
+    }
+
+    navigate("/error-messages-xml", { state: { messages: selectedMessages } });
   };
+
+  const handleToggleSelect = (objectID: string) => {
+    setSelectedObjectIDs(prevSet => {
+      const newSet = new Set(prevSet);
+      if (newSet.has(objectID)) {
+        newSet.delete(objectID);
+      } else {
+        newSet.add(objectID);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedObjectIDs.size === messages.length) {
+      setSelectedObjectIDs(new Set());
+    } else {
+      const allObjectIDs = new Set(messages.map(m => m.objectID));
+      setSelectedObjectIDs(allObjectIDs);
+    }
+  };
+
+  const isAllSelected = messages.length > 0 && selectedObjectIDs.size === messages.length;
 
 
   return (
@@ -95,16 +129,25 @@ const ErrorMessageDisplay: React.FC = () => {
         </button>
       </div>
 
-      <button 
-        onClick={handleNavigateToConvert}
-        disabled={messages.length === 0}
-        className="mb-4 px-4 py-2 bg-blue-500 text-white rounded">変換</button>
+      <div style={{ margin: "10px 0", display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: "90%" }}>
+        <button 
+          onClick={handleNavigateToConvert}
+          disabled={selectedObjectIDs.size === 0} // 選択件数が0なら非活性
+          className="mb-4 px-4 py-2 bg-blue-500 text-white rounded">
+            変換
+        </button>
+        <div>
+          <button onClick={handleSelectAll} disabled={messages.length === 0} style={{ marginRight: "10px" }}>
+            {isAllSelected ? "全解除" : "全選択"}
+          </button>
+          <strong>{selectedObjectIDs.size} / {messages.length} 件選択中</strong>
+        </div>
+      </div>
       
       {loading && <div className="p-4">読み込み中...</div>}
       
       {!loading && messages.length > 0 && (
         <table className="w-full border-collapse border border-gray-400 text-sm">
-          {/* ... (thead/tbody の内容は変更なし) ... */}
           <thead className="bg-gray-200">
             <tr>
               <th className="border border-gray-400 p-2">ObjectID</th>
@@ -121,6 +164,13 @@ const ErrorMessageDisplay: React.FC = () => {
           <tbody>
             {messages.map((msg) => (
               <tr key={msg.objectID} className="hover:bg-gray-100">
+                <td className="border border-gray-400 p-2">
+                   <input
+                    type="checkbox"
+                    checked={selectedObjectIDs.has(msg.objectID)}
+                    onChange={() => handleToggleSelect(msg.objectID)}
+                  />
+                </td>
                 <td className="border border-gray-400 p-2">{msg.objectID}</td>
                 <td className="border border-gray-400 p-2">{msg.errorNo}</td>
                 <td className="border border-gray-400 p-2">{msg.errorType}</td>

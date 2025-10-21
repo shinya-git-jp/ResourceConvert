@@ -29,6 +29,9 @@ function MessageResourceDisplay() {
   const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
 
+  // 選択状態を管理する State
+  const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
+
   // DB設定をローカルストレージから読み込む
   useEffect(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -51,6 +54,7 @@ function MessageResourceDisplay() {
 
     setLoading(true);
     setLabels([]); // 取得前にリストをクリア
+    setSelectedObjectIDs(new Set());
 
     // DB接続情報をPOSTで送信する
     fetch("http://localhost:8080/api/labels/fetch", {
@@ -68,7 +72,8 @@ function MessageResourceDisplay() {
       })
       .then((data: SLocalizationLabel[]) => {
         // EditableLabel に変換 (messageId を空で初期化)
-        setLabels(data.map(d => ({ ...d, messageId: "" })));
+        const editableData = data.map(d => ({ ...d, messageId: "" }));
+        setLabels(editableData);
         setLoading(false);
       })
       .catch((error) => {
@@ -80,18 +85,46 @@ function MessageResourceDisplay() {
 
   // 変換画面への遷移
   const handleConvert = () => {
-    if (labels.length === 0) {
-      alert("変換するデータがありません");
+    // 選択されているラベルのみをフィルタリング
+    const selectedLabels = labels.filter(label => 
+      selectedObjectIDs.has(label.objectID)
+    );
+
+    if (selectedLabels.length === 0) {
+      alert("変換するデータが選択されていません");
       return;
     }
-    // messageId が入力されていなければ objectID を使う
-    const updatedLabels = labels.map(label => ({
+
+    const updatedLabels = selectedLabels.map(label => ({
       ...label,
       messageId: label.messageId?.trim() || label.objectID,
     }));
 
     navigate("/properties", { state: { labels: updatedLabels } });
   };
+
+  const handleToggleSelect = (objectID: string) => {
+    setSelectedObjectIDs(prevSet => {
+      const newSet = new Set(prevSet);
+      if (newSet.has(objectID)) {
+        newSet.delete(objectID);
+      } else {
+        newSet.add(objectID);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedObjectIDs.size === labels.length) {
+      setSelectedObjectIDs(new Set());
+    } else {
+      const allObjectIDs = new Set(labels.map(l => l.objectID));
+      setSelectedObjectIDs(allObjectIDs);
+    }
+  };
+
+  const isAllSelected = labels.length > 0 && selectedObjectIDs.size === labels.length;
 
   return (
     <div className="App">
@@ -117,14 +150,26 @@ function MessageResourceDisplay() {
         </button>
       </div>
 
-      <button onClick={handleConvert} disabled={labels.length === 0}>変換</button>
+      <div style={{ margin: "10px 0", display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: "90%" }}>
+        <button 
+          onClick={handleConvert} 
+          disabled={selectedObjectIDs.size === 0}
+        >
+          変換
+        </button>
+        <div>
+          <button onClick={handleSelectAll} disabled={labels.length === 0} style={{ marginRight: "10px" }}>
+            {isAllSelected ? "全解除" : "全選択"}
+          </button>
+          <strong>{selectedObjectIDs.size} / {labels.length} 件選択中</strong>
+        </div>
+      </div>
 
       {loading && <div className="p-4">読み込み中...</div>}
       
       {!loading && labels.length > 0 && (
         <table>
           <thead>
-            {/* ... (thead の内容は変更なし) ... */}
             <tr>
               <th>メッセージID</th>
               <th>Object ID</th>
@@ -137,9 +182,15 @@ function MessageResourceDisplay() {
             </tr>
           </thead>
           <tbody>
-            {/* ... (tbody の内容は変更なし) ... */}
             {labels.map((label) => (
             <tr key={label.objectID}>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={selectedObjectIDs.has(label.objectID)}
+                  onChange={() => handleToggleSelect(label.objectID)}
+                />
+              </td>
               <td>
                 <input
                   type="text"
