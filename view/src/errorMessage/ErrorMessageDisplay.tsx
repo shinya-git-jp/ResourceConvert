@@ -150,6 +150,7 @@ const ErrorMessageDisplay: React.FC = () => {
         <table className="w-full border-collapse border border-gray-400 text-sm">
           <thead className="bg-gray-200">
             <tr>
+              <th className="border border-gray-400 p-2">選択</th>
               <th className="border border-gray-400 p-2">ObjectID</th>
               <th className="border border-gray-400 p-2">ErrorNo</th>
               <th className="border border-gray-400 p-2">ErrorType</th>

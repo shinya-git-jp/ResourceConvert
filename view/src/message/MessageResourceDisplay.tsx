@@ -1,7 +1,30 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "../App.css";
-import type { DbConfig } from "../types/DbConfig"; // DbConfig をインポート
+// import "../App.css";
+import type { DbConfig } from "../types/DbConfig";
+
+// MUIコンポーネントをインポート
+import {
+  Container,
+  Paper,
+  Box,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Checkbox,
+  CircularProgress,
+  TextField,
+  type SelectChangeEvent,
+} from "@mui/material";
 
 interface SLocalizationLabel {
   objectID: string;
@@ -20,9 +43,11 @@ interface EditableLabel extends SLocalizationLabel {
 // DbConnection.tsx からキーを拝借
 const LOCAL_STORAGE_KEY = "dbConfigs";
 
+const TABLE_AREA_MIN_HEIGHT_PX = 600;
+
 function MessageResourceDisplay() {
   const [labels, setLabels] = useState<EditableLabel[]>([]);
-  const [loading, setLoading] = useState(false); // 初期状態は false に
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   // DB接続設定関連の state
@@ -38,9 +63,6 @@ function MessageResourceDisplay() {
     if (saved) {
       const configs: DbConfig[] = JSON.parse(saved);
       setDbConfigs(configs);
-      // if (configs.length > 0) {
-      //   setSelectedConfigName(configs[0].name); // デフォルトで最初の設定を選択
-      // }
     }
   }, []);
 
@@ -53,16 +75,15 @@ function MessageResourceDisplay() {
     }
 
     setLoading(true);
-    setLabels([]); // 取得前にリストをクリア
+    // setLabels([]); // 取得前にリストをクリア
     setSelectedObjectIDs(new Set());
 
-    // DB接続情報をPOSTで送信する
     fetch("http://localhost:8080/api/labels/fetch", {
-      method: "POST", // POSTメソッドに変更
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(selectedConfig), // 選択したDB設定を送信
+      body: JSON.stringify(selectedConfig),
     })
       .then((response) => {
         if (!response.ok) {
@@ -71,7 +92,6 @@ function MessageResourceDisplay() {
         return response.json();
       })
       .then((data: SLocalizationLabel[]) => {
-        // EditableLabel に変換 (messageId を空で初期化)
         const editableData = data.map(d => ({ ...d, messageId: "" }));
         setLabels(editableData);
         setLoading(false);
@@ -79,13 +99,13 @@ function MessageResourceDisplay() {
       .catch((error) => {
         console.error(error);
         alert(error.message || "データ取得に失敗しました");
+        setLabels([]);
         setLoading(false);
       });
   };
 
   // 変換画面への遷移
   const handleConvert = () => {
-    // 選択されているラベルのみをフィルタリング
     const selectedLabels = labels.filter(label => 
       selectedObjectIDs.has(label.objectID)
     );
@@ -116,7 +136,7 @@ function MessageResourceDisplay() {
   };
 
   const handleSelectAll = () => {
-    if (selectedObjectIDs.size === labels.length) {
+    if (isAllSelected) {
       setSelectedObjectIDs(new Set());
     } else {
       const allObjectIDs = new Set(labels.map(l => l.objectID));
@@ -127,101 +147,171 @@ function MessageResourceDisplay() {
   const isAllSelected = labels.length > 0 && selectedObjectIDs.size === labels.length;
 
   return (
-    <div className="App">
-      <h2>メッセージリソース</h2>
+    <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Paper elevation={3} sx={{ p: 3 , overflowX:'auto'}}>
 
-      <div style={{ marginBottom: "16px" }}>
-        <label>DB接続設定:
-          <select
-            value={selectedConfigName}
-            onChange={(e) => setSelectedConfigName(e.target.value)}
-            style={{ marginLeft: "8px", marginRight: "8px" }}
-          >
-            <option value="">-- 選択してください --</option>
-            {dbConfigs.map(config => (
-              <option key={config.name} value={config.name}>
-                {config.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button onClick={handleFetchData} disabled={loading || !selectedConfigName}>
-          {loading ? "読み込み中..." : "データ取得"}
-        </button>
-      </div>
-
-      <div style={{ margin: "10px 0", display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: "90%" }}>
-        <button 
-          onClick={handleConvert} 
-          disabled={selectedObjectIDs.size === 0}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
         >
-          変換
-        </button>
-        <div>
-          <button onClick={handleSelectAll} disabled={labels.length === 0} style={{ marginRight: "10px" }}>
-            {isAllSelected ? "全解除" : "全選択"}
-          </button>
-          <strong>{selectedObjectIDs.size} / {labels.length} 件選択中</strong>
-        </div>
-      </div>
+          <Typography variant="h6">
+            メッセージリソース
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={handleConvert}
+            disabled={selectedObjectIDs.size === 0}
+          >
+            変換
+          </Button>
+        </Box>
 
-      {loading && <div className="p-4">読み込み中...</div>}
-      
-      {!loading && labels.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>メッセージID</th>
-              <th>Object ID</th>
-              <th>Category</th>
-              <th>Country1</th>
-              <th>Country2</th>
-              <th>Country3</th>
-              <th>Country4</th>
-              <th>Country5</th>
-            </tr>
-          </thead>
-          <tbody>
-            {labels.map((label) => (
-            <tr key={label.objectID}>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={selectedObjectIDs.has(label.objectID)}
-                  onChange={() => handleToggleSelect(label.objectID)}
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  value={label.messageId ?? ""}
-                  placeholder="任意で入力"
-                  onChange={(e) => {
-                    const newLabels = labels.map((l) =>
-                      l.objectID === label.objectID
-                        ? { ...l, messageId: e.target.value }
-                        : l
-                    );
-                    setLabels(newLabels);
-                  }}
-                />
-              </td>
-              <td>{label.objectID}</td>
-              <td>{label.categoryName}</td>
-              <td>{label.country1}</td>
-              <td>{label.country2}</td>
-              <td>{label.country3}</td>
-              <td>{label.country4}</td>
-              <td>{label.country5}</td>
-            </tr>
-          ))}
-          </tbody>
-        </table>
-      )}
-      {!loading && labels.length === 0 && (
-          <p>データを取得してください。</p>
-      )}
-    </div>
+        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+          <FormControl sx={{ minWidth: 240, mr: 2 }} size="small">
+            <InputLabel id="db-config-select-label">DB接続設定</InputLabel>
+            <Select
+              labelId="db-config-select-label"
+              label="DB接続設定"
+              value={selectedConfigName}
+              onChange={(e: SelectChangeEvent<string>) => setSelectedConfigName(e.target.value)}
+            >
+              <MenuItem value="">
+                <em>-- 選択してください --</em>
+              </MenuItem>
+              {dbConfigs.map(config => (
+                <MenuItem key={config.name} value={config.name}>
+                  {config.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button
+            sx={{ minWidth: '150px' }}
+            variant="outlined"
+            onClick={handleFetchData}
+            disabled={loading || !selectedConfigName}
+          >
+            {loading ? <CircularProgress size={24} sx={{mr: 1}} /> : null}
+            {loading ? "読み込み中..." : "データ取得"}
+          </Button>
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1, minHeight: '30px' }}>
+          {labels.length > 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ mr: 3 }}>
+              <strong>{selectedObjectIDs.size} / {labels.length}</strong> 件選択中
+            </Typography>
+          )}
+          <Button 
+                onClick={handleSelectAll} 
+                size="small"
+                variant="outlined"
+                disabled={labels.length === 0}
+              >
+                {isAllSelected ? '全件解除' : '全件選択'}
+          </Button>
+        </Box>
+
+          {loading && (
+            <Box 
+              sx={{ 
+                display: "flex", 
+                justifyContent: "center", 
+                alignItems: 'center',
+                p: 4, 
+                minHeight: TABLE_AREA_MIN_HEIGHT_PX,
+              }}
+            >
+              <CircularProgress />
+            </Box>
+          )}
+        
+        {labels.length > 0 && (
+          <TableContainer sx={{ maxHeight: TABLE_AREA_MIN_HEIGHT_PX, }}>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox" sx={{ minWidth: 60 }}>
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 170 }}>メッセージID</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>Object ID</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>Category</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>Country1</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>Country2</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>Country3</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>Country4</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>Country5</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {labels.map((label) => (
+                  <TableRow 
+                    key={label.objectID} 
+                    hover
+                    role="checkbox"
+                    tabIndex={-1}
+                    selected={selectedObjectIDs.has(label.objectID)}
+                    onClick={() => handleToggleSelect(label.objectID)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        color="primary"
+                        checked={selectedObjectIDs.has(label.objectID)}
+                      />
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TextField
+                        variant="standard"
+                        size="small"
+                        value={label.messageId ?? ""}
+                        placeholder="任意で入力"
+                        onChange={(e) => {
+                          const newLabels = labels.map((l) =>
+                            l.objectID === label.objectID
+                              ? { ...l, messageId: e.target.value }
+                              : l
+                          );
+                          setLabels(newLabels);
+                        }}
+                        sx={{ minWidth: 150 }}
+                      />
+                    </TableCell>
+                    <TableCell>{label.objectID}</TableCell>
+                    <TableCell>{label.categoryName}</TableCell>
+                    <TableCell>{label.country1}</TableCell>
+                    <TableCell>{label.country2}</TableCell>
+                    <TableCell>{label.country3}</TableCell>
+                    <TableCell>{label.country4}</TableCell>
+                    <TableCell>{label.country5}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {labels.length === 0 && (
+          <Box 
+            sx={{ 
+              display: "flex", 
+              justifyContent: "center", 
+              alignItems: 'center',
+              p: 4, 
+              minHeight: TABLE_AREA_MIN_HEIGHT_PX,
+            }}
+          >
+          <Typography sx={{ p: 4, textAlign: 'center' }}>
+            データを取得してください。
+          </Typography>
+        </Box>
+        )}
+      </Paper>
+    </Container>
   );
 }
 
