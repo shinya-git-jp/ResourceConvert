@@ -15,9 +15,9 @@ import {
 } from '@mui/material';
 // アイコンをインポート
 import MenuIcon from '@mui/icons-material/Menu';
-import StorageIcon from '@mui/icons-material/Storage';
+import DBIcon from '@mui/icons-material/Storage';
 import MessageIcon from '@mui/icons-material/Message';
-import ErrorIcon from '@mui/icons-material/Error';
+import ErrorIcon from '@mui/icons-material/SmsFailed';
 import HomeIcon from '@mui/icons-material/Home';
 
 const drawerWidth = 280; // メニューの幅
@@ -33,9 +33,9 @@ const MainLayout: React.FC = () => {
   // メニュー項目と遷移先
   const menuItems = [
     { text: 'Home', icon: <HomeIcon />, path: '/' },
-    { text: 'データベース接続設定', icon: <StorageIcon />, path: '/db-connection' },
-    { text: 'メッセージリソース', icon: <MessageIcon />, path: '/message-resource' },
-    { text: 'エラーメッセージリソース', icon: <ErrorIcon />, path: '/error-messages' },
+    { text: 'データベース接続設定', icon: <DBIcon />, path: '/db-connection' },
+    { text: 'メッセージリソース変換', icon: <MessageIcon />, path: '/message-resource' },
+    { text: 'エラーメッセージリソース変換', icon: <ErrorIcon />, path: '/error-messages' },
   ];
 
   const handleNavigation = (path: string) => {

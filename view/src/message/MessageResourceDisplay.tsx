@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-// import "../App.css";
+import "../App.css";
 import type { DbConfig } from "../types/DbConfig";
 
 // MUIコンポーネントをインポート
@@ -147,7 +147,7 @@ function MessageResourceDisplay() {
   const isAllSelected = labels.length > 0 && selectedObjectIDs.size === labels.length;
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
       <Paper elevation={3} sx={{ p: 3 , overflowX:'auto'}}>
 
         <Box
@@ -159,9 +159,10 @@ function MessageResourceDisplay() {
           }}
         >
           <Typography variant="h6">
-            メッセージリソース
+            メッセージリソース変換
           </Typography>
           <Button
+            size="large"
             variant="contained"
             onClick={handleConvert}
             disabled={selectedObjectIDs.size === 0}
@@ -208,7 +209,7 @@ function MessageResourceDisplay() {
           )}
           <Button 
                 onClick={handleSelectAll} 
-                size="small"
+                size="medium"
                 variant="outlined"
                 disabled={labels.length === 0}
               >
