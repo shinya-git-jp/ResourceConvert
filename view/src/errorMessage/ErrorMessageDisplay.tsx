@@ -3,7 +3,30 @@ import { useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
 import type { DbConfig } from "../types/DbConfig"; // DbConfig をインポート
 
+// MUIコンポーネントをインポート
+import {
+  Container,
+  Paper,
+  Box,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Checkbox,
+  CircularProgress,
+  type SelectChangeEvent,
+} from "@mui/material";
+
 const LOCAL_STORAGE_KEY = "dbConfigs";
+const TABLE_AREA_MIN_HEIGHT_PX = 600;
 
 const ErrorMessageDisplay: React.FC = () => {
   const [messages, setMessages] = useState<ErrorMessage[]>([]);
@@ -23,9 +46,6 @@ const ErrorMessageDisplay: React.FC = () => {
     if (saved) {
       const configs: DbConfig[] = JSON.parse(saved);
       setDbConfigs(configs);
-      // if (configs.length > 0) {
-      //   setSelectedConfigName(configs[0].name); // デフォルトで最初の設定を選択
-      // }
     }
   }, []);
 
@@ -38,7 +58,7 @@ const ErrorMessageDisplay: React.FC = () => {
     }
 
     setLoading(true);
-    setMessages([]); // クリア
+    // setMessages([]); // クリア
     setSelectedObjectIDs(new Set()); // 選択もクリア
 
     // APIエンドポイントを /api/error-messages/fetch に変更
@@ -62,11 +82,10 @@ const ErrorMessageDisplay: React.FC = () => {
       .catch((err) => {
         console.error("エラーメッセージ取得失敗:", err);
         alert(err.message || "エラーメッセージ取得失敗");
+        setMessages([]); // エラー時はクリア
         setLoading(false);
       });
   };
-
-
 
   const handleNavigateToConvert = () => {
     const selectedMessages = messages.filter(msg =>
@@ -94,7 +113,7 @@ const ErrorMessageDisplay: React.FC = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedObjectIDs.size === messages.length) {
+    if (isAllSelected) {
       setSelectedObjectIDs(new Set());
     } else {
       const allObjectIDs = new Set(messages.map(m => m.objectID));
@@ -104,92 +123,159 @@ const ErrorMessageDisplay: React.FC = () => {
 
   const isAllSelected = messages.length > 0 && selectedObjectIDs.size === messages.length;
 
-
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-bold mb-4">エラーメッセージリソース</h2>
-      
-      <div style={{ marginBottom: "16px" }}>
-        <label>DB接続設定:
-          <select
-            value={selectedConfigName}
-            onChange={(e) => setSelectedConfigName(e.target.value)}
-            style={{ marginLeft: "8px", marginRight: "8px" }}
-          >
-            <option value="">-- 選択してください --</option>
-            {dbConfigs.map(config => (
-              <option key={config.name} value={config.name}>
-                {config.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button onClick={handleFetchData} disabled={loading || !selectedConfigName}>
-          {loading ? "読み込み中..." : "データ取得"}
-        </button>
-      </div>
+    <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
+      <Typography variant="h5" component="h2" gutterBottom>
+            エラーメッセージリソース変換
+          </Typography>
+      <Paper elevation={3} sx={{ p: 3, overflowX: 'auto' }}>
 
-      <div style={{ margin: "10px 0", display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: "90%" }}>
-        <button 
-          onClick={handleNavigateToConvert}
-          disabled={selectedObjectIDs.size === 0} // 選択件数が0なら非活性
-          className="mb-4 px-4 py-2 bg-blue-500 text-white rounded">
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
+          <Button
+            size="large"
+            variant="contained"
+            onClick={handleNavigateToConvert}
+            disabled={selectedObjectIDs.size === 0}
+          >
             変換
-        </button>
-        <div>
-          <button onClick={handleSelectAll} disabled={messages.length === 0} style={{ marginRight: "10px" }}>
-            {isAllSelected ? "全解除" : "全選択"}
-          </button>
-          <strong>{selectedObjectIDs.size} / {messages.length} 件選択中</strong>
-        </div>
-      </div>
+          </Button>
+        </Box>
+
+        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+          <FormControl sx={{ minWidth: 240, mr: 2 }} size="small">
+            <InputLabel id="db-config-select-label">DB接続設定</InputLabel>
+            <Select
+              labelId="db-config-select-label"
+              label="DB接続設定"
+              value={selectedConfigName}
+              onChange={(e: SelectChangeEvent<string>) => setSelectedConfigName(e.target.value)}
+            >
+              <MenuItem value="">
+                <em>-- 選択してください --</em>
+              </MenuItem>
+              {dbConfigs.map(config => (
+                <MenuItem key={config.name} value={config.name}>
+                  {config.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button
+            sx={{ minWidth: '150px' }}
+            variant="outlined"
+            onClick={handleFetchData}
+            disabled={loading || !selectedConfigName}
+          >
+            {loading ? <CircularProgress size={24} sx={{mr: 1}} /> : null}
+            {loading ? "読み込み中..." : "データ取得"}
+          </Button>
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1, minHeight: '30px' }}>
+          {messages.length > 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ mr: 3 }}>
+              <strong>{selectedObjectIDs.size} / {messages.length}</strong> 件選択中
+            </Typography>
+          )}
+          <Button 
+            onClick={handleSelectAll} 
+            size="medium"
+            variant="outlined"
+            disabled={messages.length === 0}
+          >
+            {isAllSelected ? '全件解除' : '全件選択'}
+          </Button>
+        </Box>
+
+        {loading && (
+          <Box 
+            sx={{ 
+              display: "flex", 
+              justifyContent: "center", 
+              alignItems: 'center',
+              p: 4, 
+              minHeight: TABLE_AREA_MIN_HEIGHT_PX,
+            }}
+          >
+            <CircularProgress />
+          </Box>
+        )}
       
-      {loading && <div className="p-4">読み込み中...</div>}
-      
-      {!loading && messages.length > 0 && (
-        <table className="w-full border-collapse border border-gray-400 text-sm">
-          <thead className="bg-gray-200">
-            <tr>
-              <th className="border border-gray-400 p-2">選択</th>
-              <th className="border border-gray-400 p-2">ObjectID</th>
-              <th className="border border-gray-400 p-2">ErrorNo</th>
-              <th className="border border-gray-400 p-2">ErrorType</th>
-              <th className="border border-gray-400 p-2">MessageObjectID</th>
-              <th className="border border-gray-400 p-2">country1</th>
-              <th className="border border-gray-400 p-2">country2</th>
-              <th className="border border-gray-400 p-2">country3</th>
-              <th className="border border-gray-400 p-2">country4</th>
-              <th className="border border-gray-400 p-2">country5</th>
-            </tr>
-          </thead>
-          <tbody>
-            {messages.map((msg) => (
-              <tr key={msg.objectID} className="hover:bg-gray-100">
-                <td className="border border-gray-400 p-2">
-                   <input
-                    type="checkbox"
-                    checked={selectedObjectIDs.has(msg.objectID)}
-                    onChange={() => handleToggleSelect(msg.objectID)}
-                  />
-                </td>
-                <td className="border border-gray-400 p-2">{msg.objectID}</td>
-                <td className="border border-gray-400 p-2">{msg.errorNo}</td>
-                <td className="border border-gray-400 p-2">{msg.errorType}</td>
-                <td className="border border-gray-400 p-2">{msg.messageObjectID}</td>
-                <td className="border border-gray-400 p-2">{msg.country1}</td>
-                <td className="border border-gray-400 p-2">{msg.country2}</td>
-                <td className="border border-gray-400 p-2">{msg.country3}</td>
-                <td className="border border-gray-400 p-2">{msg.country4}</td>
-                <td className="border border-gray-400 p-2">{msg.country5}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {!loading && messages.length === 0 && (
-          <p>データを取得してください。</p>
-      )}
-    </div>
+        {!loading && messages.length > 0 && (
+          <TableContainer sx={{ maxHeight: TABLE_AREA_MIN_HEIGHT_PX }}>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox" sx={{ minWidth: 60 }}>
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>ObjectID</TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>ErrorNo</TableCell>
+                  <TableCell sx={{ minWidth: 100 }}>ErrorType</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>MessageObjectID</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>country1</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>country2</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>country3</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>country4</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>country5</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {messages.map((msg) => (
+                  <TableRow 
+                    key={msg.objectID} 
+                    hover
+                    role="checkbox"
+                    tabIndex={-1}
+                    selected={selectedObjectIDs.has(msg.objectID)}
+                    onClick={() => handleToggleSelect(msg.objectID)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        color="primary"
+                        checked={selectedObjectIDs.has(msg.objectID)}
+                      />
+                    </TableCell>
+                    <TableCell>{msg.objectID}</TableCell>
+                    <TableCell>{msg.errorNo}</TableCell>
+                    <TableCell>{msg.errorType}</TableCell>
+                    <TableCell>{msg.messageObjectID}</TableCell>
+                    <TableCell>{msg.country1}</TableCell>
+                    <TableCell>{msg.country2}</TableCell>
+                    <TableCell>{msg.country3}</TableCell>
+                    <TableCell>{msg.country4}</TableCell>
+                    <TableCell>{msg.country5}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {!loading && messages.length === 0 && (
+          <Box 
+            sx={{ 
+              display: "flex", 
+              justifyContent: "center", 
+              alignItems: 'center',
+              p: 4, 
+              minHeight: TABLE_AREA_MIN_HEIGHT_PX,
+            }}
+          >
+            <Typography sx={{ p: 4, textAlign: 'center' }}>
+              データを取得してください。
+            </Typography>
+          </Box>
+        )}
+      </Paper>
+    </Container>
   );
 };
 

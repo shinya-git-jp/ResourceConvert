@@ -86,8 +86,8 @@ const MainLayout: React.FC = () => {
             src="/icon.png"
             alt="icon"
             sx={{
-              height: 40,
-              width: 40,
+              height: 'auto',
+              width: 80,
               mr: 1.5,
             }}
           />

@@ -100,6 +100,9 @@ export const MessageResourceConvert = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
+      <Typography variant="h5" component="h2" gutterBottom>
+            メッセージリソース変換
+      </Typography>
       <Paper elevation={3} sx={{ p: 3, overflowX: 'auto' }}>
         <Box
           sx={{

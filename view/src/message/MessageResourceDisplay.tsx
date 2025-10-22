@@ -148,19 +148,19 @@ function MessageResourceDisplay() {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
+      <Typography variant="h5" component="h2" gutterBottom>
+            メッセージリソース変換
+      </Typography>
       <Paper elevation={3} sx={{ p: 3 , overflowX:'auto'}}>
 
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             alignItems: "center",
             mb: 2,
           }}
         >
-          <Typography variant="h6">
-            メッセージリソース変換
-          </Typography>
           <Button
             size="large"
             variant="contained"

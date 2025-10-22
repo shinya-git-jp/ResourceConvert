@@ -2,6 +2,24 @@ import React, { useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
 
+// MUIコンポーネントをインポート
+import {
+  Container,
+  Paper,
+  Box,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  type SelectChangeEvent,
+} from "@mui/material";
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DownloadIcon from '@mui/icons-material/Download';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+
+
 const ErrorMessageXmlConvert: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -11,8 +29,8 @@ const ErrorMessageXmlConvert: React.FC = () => {
     const [selectedLang, setSelectedLang] = useState<keyof ErrorMessage>("country1");
     const previewTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-
-    const generateXmlPreview = () => {
+    // XMLプレビューを生成する
+    const generatePreviewText = () => {
         const xmlItems = messages.map((msg) => {
             let type: string;
             if (msg.errorType === "1") {
@@ -44,7 +62,7 @@ const ErrorMessageXmlConvert: React.FC = () => {
             const response = await fetch(
                 "http://localhost:8080/api/error-messages/xml/download",
                 {
-                    method: "POST", // POSTメソッドに変更
+                    method: "POST", // POSTメソッド
                     headers: {
                         "Content-Type": "application/json",
                     },
@@ -74,55 +92,114 @@ const ErrorMessageXmlConvert: React.FC = () => {
         }
     };
 
+    // プレビューをコピー
     const handleCopyPreview = () => {
-        const textToCopy = generateXmlPreview(); 
-        navigator.clipboard.writeText(textToCopy)
-        .then(() => {
-            alert('コピーしました');
-        })
-        .catch(err => {
-            console.error('コピーに失敗しました:', err);
-            alert('コピーに失敗しました。');
-        });
+        if (previewTextareaRef.current) {
+            const textToCopy = previewTextareaRef.current.value;
+            navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+                alert('コピーしました');
+            })
+            .catch(err => {
+                console.error('コピーに失敗しました:', err);
+                alert('コピーに失敗しました。');
+            });
+        }
     };
 
     return (
-        <div style={{ padding: "20px" }}>
-            <h2>変換結果</h2>
-            <button onClick={handleDownload} style={{ marginLeft: "10px" }}>
-                ダウンロード
-            </button>
-            <button onClick={() => navigate(-1)} style={{ marginLeft: "10px" }}>戻る</button>
-            <div style={{ marginBottom: "10px", marginTop: "10px" }}>
-                表示言語:
-                <select
-                    value={selectedLang}
-                    onChange={(e) => setSelectedLang(e.target.value as keyof ErrorMessage)}
-                    style={{ marginLeft: "5px" }}
+        <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
+            <Typography variant="h5" component="h2" gutterBottom>
+              エラーメッセージリソース変換
+            </Typography>
+            <Paper elevation={3} sx={{ p: 3, overflowX: 'auto' }}>
+                <Box
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mb: 2,
+                }}
                 >
-                    <option value="country1">Country1</option>
-                    <option value="country2">Country2</option>
-                    <option value="country3">Country3</option>
-                    <option value="country4">Country4</option>
-                    <option value="country5">Country5</option>
-                </select>
-            </div>
+                <Button 
+                    variant="outlined" 
+                    onClick={() => navigate(-1)}
+                    startIcon={<ArrowBackIcon />}
+                    sx={{ mr: 2 }}
+                >
+                    戻る
+                </Button>
+                <Typography variant="h5" sx={{ flexGrow: 1 }}>
+                    変換結果
+                </Typography>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
-                <h3>プレビュー</h3>
-                <button onClick={handleCopyPreview} style={{ marginLeft: "10px" }}>
+                <Button
+                    size="large"
+                    variant="contained"
+                    onClick={handleDownload}
+                    startIcon={<DownloadIcon />}
+                >
+                    ダウンロード
+                </Button>
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                <FormControl sx={{ minWidth: 200 }} size="small">
+                    <InputLabel id="language-select-label">表示言語</InputLabel>
+                    <Select
+                        labelId="language-select-label"
+                        label="表示言語"
+                        value={selectedLang}
+                        onChange={(e: SelectChangeEvent<string>) => setSelectedLang(e.target.value as keyof ErrorMessage)}
+                    >
+                        <MenuItem value="country1">Country1</MenuItem>
+                        <MenuItem value="country2">Country2</MenuItem>
+                        <MenuItem value="country3">Country3</MenuItem>
+                        <MenuItem value="country4">Country4</MenuItem>
+                        <MenuItem value="country5">Country5</MenuItem>
+                    </Select>
+                </FormControl>
+                </Box>
+
+                <Box 
+                sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'flex-end',
+                    mb: 1
+                }}
+                >
+                <Button 
+                    onClick={handleCopyPreview} 
+                    size="medium"
+                    variant="outlined"
+                    startIcon={<ContentCopyIcon />}
+                >
                     コピー
-                </button>
-            </div>
-            <textarea
-                ref={previewTextareaRef}
-                readOnly
-                value={generateXmlPreview()}
-                rows={30}
-                cols={120}
-                style={{ whiteSpace: "pre-wrap" }}
-            />
-        </div>
+                </Button>
+                </Box>
+
+                <Box sx={{ minWidth: 'max-content' }}>
+                <textarea
+                    ref={previewTextareaRef}
+                    readOnly
+                    value={generatePreviewText()}
+                    style={{
+                    width: '100%',
+                    height: '600px',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    borderColor: '#4ab5e2ff',
+                    fontFamily: 'monospace',
+                    fontSize: '0.875rem',
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre',
+                    overflow: 'auto',
+                    resize: 'none',
+                    }}
+                />
+                </Box>
+            </Paper>
+        </Container>
     );
 };
 
