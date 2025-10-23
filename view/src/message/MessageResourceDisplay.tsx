@@ -361,7 +361,7 @@ function MessageResourceDisplay() {
                   <TableHead>
                     <TableRow>
                       <TableCell padding="checkbox" sx={{ minWidth: 60 }}></TableCell>
-                      <TableCell sx={{ minWidth: 170 }}>メッセージID</TableCell>
+                      <TableCell sx={{ minWidth: 170 }}>メッセージID（任意）</TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Object ID</TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Category</TableCell>
                       <TableCell sx={{ minWidth: 200 }}>Country1</TableCell>

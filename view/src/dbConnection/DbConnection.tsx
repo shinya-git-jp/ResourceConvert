@@ -34,7 +34,7 @@ const DbConnection: React.FC = () => {
     name: "",
     dbType: "MySQL",
     host: "",
-    port: "" as any,
+    port: "",
     dbName: "",
     username: "",
     password: "",
@@ -65,7 +65,7 @@ const DbConnection: React.FC = () => {
 
   const handleSelect = (name: string) => {
     const selected = configs.find((c) => c.name === name);
-    if (selected) setCurrentConfig(selected);
+    if (selected) setCurrentConfig({...selected, port: selected.port ?? ''});
   };
 
   const handleDelete = (e: React.MouseEvent, name: string) => {
@@ -80,6 +80,10 @@ const DbConnection: React.FC = () => {
   };
 
   const handleTestConnection = async () => {
+    if (currentConfig.port === "") {
+        alert("ポート番号を入力してください。");
+        return;
+    }
     try {
       const response = await fetch("http://localhost:8080/api/db/test", {
         method: "POST",
@@ -99,7 +103,7 @@ const DbConnection: React.FC = () => {
       name: "",
       dbType: "MySQL",
       host: "",
-      port: "" as any,
+      port: "",
       dbName: "",
       username: "",
       password: "",
@@ -112,10 +116,26 @@ const DbConnection: React.FC = () => {
   { target: { name: string; value: unknown } }
 ) => {
   const { name, value } = e.target;
+  let processedValue: string | number | unknown = value;
+
+  if (name === "port") {
+      if (value === "") {
+        processedValue = "";
+      } else {
+         const numValue = Number(value);
+         if (!isNaN(numValue)) {
+            processedValue = numValue;
+         } else {
+            processedValue = value;
+         }
+      }
+    } else if (name === "dbType") {
+       processedValue = value as string;
+    }
 
   setCurrentConfig({
     ...currentConfig,
-    [name]: name === "port" ? Number(value) : value,
+    [name]: processedValue as any,
   });
 };
 
