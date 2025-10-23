@@ -3,6 +3,8 @@ package com.example.backend.controller;
 import com.example.backend.entity.SLocalizationLabel;
 import com.example.backend.repository.SLocalizationLabelRepository;
 import com.example.backend.service.DBConnectionService;
+import com.example.backend.dto.FetchRequestDto;
+import com.example.backend.dto.FilterDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/labels")
@@ -32,20 +35,46 @@ public class SLocalizationLabelController {
     }
 
     @PostMapping("/fetch")
-    public List<SLocalizationLabel> fetchLabelsFromDynamicDB(@RequestBody Map<String, Object> config) {
+    public List<SLocalizationLabel> fetchLabelsFromDynamicDB(@RequestBody FetchRequestDto request) { // ★ DTOで受け取る
         try {
-            String dbType = (String) config.get("dbType");
-            String host = (String) config.get("host");
-            int port = ((Number) config.get("port")).intValue();
-            String dbName = (String) config.get("dbName");
-            String username = (String) config.get("username");
-            String password = (String) config.get("password");
+            String dbType = request.getDbType();
+            String host = request.getHost();
+            int port = request.getPort();
+            String dbName = request.getDbName();
+            String username = request.getUsername();
+            String password = request.getPassword();
 
             JdbcTemplate dynamicJdbcTemplate = dbConnectionService.createJdbcTemplate(
                     dbType, host, port, dbName, username, password
             );
 
-            String sql = "SELECT objectID, categoryName, country1, country2, country3, country4, country5 FROM SLocalizationLabel";
+            // ★ SQLとパラメータリストを動的に構築
+            StringBuilder sql = new StringBuilder(
+                "SELECT objectID, categoryName, country1, country2, country3, country4, country5 " +
+                "FROM SLocalizationLabel WHERE 1=1" // 常に true で始める
+            );
+            
+            List<Object> params = new ArrayList<>();
+            FilterDto filter = request.getFilter();
+
+            if (filter != null) {
+                if (filter.getObjectID() != null && !filter.getObjectID().isEmpty()) {
+                    sql.append(" AND objectID LIKE ?");
+                    params.add("%" + filter.getObjectID() + "%");
+                }
+                if (filter.getCategoryName() != null && !filter.getCategoryName().isEmpty()) {
+                    sql.append(" AND categoryName LIKE ?");
+                    params.add("%" + filter.getCategoryName() + "%");
+                }
+                if (filter.getMessage() != null && !filter.getMessage().isEmpty()) {
+                    sql.append(" AND (country1 LIKE ? OR country2 LIKE ? OR country3 LIKE ? OR country4 LIKE ? OR country5 LIKE ?)");
+                    String messageLike = "%" + filter.getMessage() + "%";
+                    for (int i = 0; i < 5; i++) {
+                        params.add(messageLike);
+                    }
+                }
+            }
+
 
             RowMapper<SLocalizationLabel> rowMapper = (rs, rowNum) -> {
                 SLocalizationLabel label = new SLocalizationLabel();
@@ -59,7 +88,8 @@ public class SLocalizationLabelController {
                 return label;
             };
 
-            return dynamicJdbcTemplate.query(sql, rowMapper);
+            // ★ SQLとパラメータを渡してクエリ実行
+            return dynamicJdbcTemplate.query(sql.toString(), rowMapper, params.toArray());
 
         } catch (Exception e) {
             throw new RuntimeException("動的DBからのデータ取得に失敗しました: " + e.getMessage(), e);

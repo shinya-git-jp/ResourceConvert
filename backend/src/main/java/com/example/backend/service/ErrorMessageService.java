@@ -1,18 +1,20 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.ErrorMessageDto;
+import com.example.backend.dto.FilterDto;
 import com.example.backend.entity.SError;
 import com.example.backend.entity.SLocalization;
 import com.example.backend.repository.SErrorRepository;
 import com.example.backend.repository.SLocalizationRepository;
 
-import org.springframework.beans.factory.annotation.Autowired; // 追加
-import org.springframework.jdbc.core.JdbcTemplate; // 追加
-import org.springframework.jdbc.core.RowMapper; // 追加
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map; // 追加
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,13 +42,15 @@ public class ErrorMessageService {
     }
 
     /**
-     * 新規：動的DBから取得
+     * 動的DBから取得 (フィルター機能付き)
      * @param config フロントから渡されるDB接続設定 (DbConfig)
+     * @param filter フロントから渡されるフィルター条件 (Nullable)
      * @return ErrorMessageDto のリスト
      */
-    public List<ErrorMessageDto> getAllErrorMessagesFromDynamicDB(Map<String, Object> config) {
+    public List<ErrorMessageDto> getAllErrorMessagesFromDynamicDB(
+            Map<String, Object> config, 
+            FilterDto filter) { 
         try {
-            // 1. config から JdbcTemplate を生成
             String dbType = (String) config.get("dbType");
             String host = (String) config.get("host");
             int port = ((Number) config.get("port")).intValue();
@@ -58,37 +62,58 @@ public class ErrorMessageService {
                     dbType, host, port, dbName, username, password
             );
 
-            // 2. SError と SLocalization からデータを取得
-            // (JPAリポジトリの findAll() の代替)
+            StringBuilder sql = new StringBuilder(
+                "SELECT " +
+                "    e.objectID, e.errorNo, e.errorMessageID, e.errorType, " +
+                "    l.ObjectID as messageObjectID, " +
+                "    l.country1, l.country2, l.country3, l.country4, l.country5 " +
+                "FROM " +
+                "    SError e " +
+                "LEFT JOIN " +
+                "    SLocalization l ON e.errorMessageID = l.ObjectID " +
+                "WHERE 1=1" 
+            );
+            
+            List<Object> params = new ArrayList<>();
 
-            // SError テーブル取得
-            String errorSql = "SELECT objectID, errorNo, errorMessageID, errorType FROM SError"; // 必要なカラムのみ
-            RowMapper<SError> errorRowMapper = (rs, rowNum) -> {
-                SError err = new SError();
-                err.setObjectID(rs.getString("objectID"));
-                err.setErrorNo(rs.getString("errorNo"));
-                err.setErrorMessageID(rs.getString("errorMessageID"));
-                err.setErrorType(rs.getString("errorType"));
-                return err;
+            if (filter != null) {
+                if (filter.getObjectID() != null && !filter.getObjectID().isEmpty()) {
+                    sql.append(" AND e.objectID LIKE ?");
+                    params.add("%" + filter.getObjectID() + "%");
+                }
+                if (filter.getErrorNo() != null && !filter.getErrorNo().isEmpty()) {
+                    sql.append(" AND e.errorNo LIKE ?");
+                    params.add("%" + filter.getErrorNo() + "%");
+                }
+                if (filter.getErrorType() != null && !filter.getErrorType().isEmpty()) {
+                    sql.append(" AND e.errorType LIKE ?");
+                    params.add("%" + filter.getErrorType() + "%");
+                }
+                if (filter.getMessage() != null && !filter.getMessage().isEmpty()) {
+                    sql.append(" AND (l.country1 LIKE ? OR l.country2 LIKE ? OR l.country3 LIKE ? OR l.country4 LIKE ? OR l.country5 LIKE ?)");
+                    String messageLike = "%" + filter.getMessage() + "%";
+                    for (int i = 0; i < 5; i++) {
+                        params.add(messageLike);
+                    }
+                }
+            }
+
+            RowMapper<ErrorMessageDto> rowMapper = (rs, rowNum) -> {
+                ErrorMessageDto dto = new ErrorMessageDto();
+                dto.setObjectID(rs.getString("objectID")); // SError.objectID
+                dto.setErrorNo(rs.getString("errorNo"));
+                dto.setErrorType(rs.getString("errorType"));
+                dto.setMessageObjectID(rs.getString("messageObjectID")); // SLocalization.ObjectID
+                dto.setCountry1(rs.getString("country1"));
+                dto.setCountry2(rs.getString("country2"));
+                dto.setCountry3(rs.getString("country3"));
+                dto.setCountry4(rs.getString("country4"));
+                dto.setCountry5(rs.getString("country5"));
+                return dto;
             };
-            List<SError> errors = dynamicJdbcTemplate.query(errorSql, errorRowMapper);
 
-            // SLocalization テーブル取得
-            String locSql = "SELECT ObjectID, country1, country2, country3, country4, country5 FROM SLocalization";
-             RowMapper<SLocalization> locRowMapper = (rs, rowNum) -> {
-                SLocalization loc = new SLocalization();
-                loc.setObjectID(rs.getString("ObjectID"));
-                loc.setCountry1(rs.getString("country1"));
-                loc.setCountry2(rs.getString("country2"));
-                loc.setCountry3(rs.getString("country3"));
-                loc.setCountry4(rs.getString("country4"));
-                loc.setCountry5(rs.getString("country5"));
-                return loc;
-            };
-            List<SLocalization> localizations = dynamicJdbcTemplate.query(locSql, locRowMapper);
-
-            // 3. 既存のロジック でマッピング
-            return mapErrorsAndLocalizations(errors, localizations);
+            // 4. クエリ実行
+            return dynamicJdbcTemplate.query(sql.toString(), rowMapper ,params.toArray());
 
         } catch (Exception e) {
             throw new RuntimeException("動的DBからのエラーメッセージ取得に失敗しました: " + e.getMessage(), e);

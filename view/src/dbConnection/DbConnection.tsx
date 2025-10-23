@@ -197,7 +197,7 @@ const DbConnection: React.FC = () => {
           <TextField
             fullWidth
             margin="normal"
-            label="DB名 / スキーマ"
+            label="データベース名"
             name="dbName"
             value={currentConfig.dbName}
             onChange={handleChange}

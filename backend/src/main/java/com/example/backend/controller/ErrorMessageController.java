@@ -2,6 +2,7 @@ package com.example.backend.controller;
 
 import com.example.backend.dto.ErrorMessageDto;
 import com.example.backend.service.ErrorMessageService;
+import com.example.backend.dto.FetchRequestDto;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,8 +37,9 @@ public class ErrorMessageController {
     }
 
     @PostMapping("/api/error-messages/fetch")
-    public List<ErrorMessageDto> fetchErrorMessages(@RequestBody Map<String, Object> config) {
-        return service.getAllErrorMessagesFromDynamicDB(config);
+    public List<ErrorMessageDto> fetchErrorMessages(@RequestBody FetchRequestDto request) { // ★ DTOで受け取る
+        // Service に DbConfigMap と FilterDto を渡す
+        return service.getAllErrorMessagesFromDynamicDB(request.asDbConfigMap(), request.getFilter());
     }
 
     @GetMapping("/api/error-messages/xml")
