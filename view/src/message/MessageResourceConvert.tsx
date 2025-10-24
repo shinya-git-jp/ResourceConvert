@@ -1,5 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import "../App.css";
 import type { LanguageMap } from "../types/DbConfig";
 
@@ -15,6 +17,14 @@ import {
   MenuItem,
   Button,
   type SelectChangeEvent,
+  Checkbox,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormGroup,
+  FormControlLabel,
+  TextField,
 } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -39,49 +49,56 @@ export const MessageResourceConvert = () => {
   const initialLabels: EditableLabel[] = state?.labels || [];
   const langMap = state?.languageMap;
   const [labels] = useState<EditableLabel[]>(initialLabels);
-  const [selectedCountry, setSelectedCountry] = useState<keyof LanguageMap>("country1");
+  const [selectedCountryForPreview, setSelectedCountryForPreview] = useState<keyof LanguageMap>("country1");
   const previewTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ダウンロード用バックエンド呼び出し
-  const handleDownload = async () => {
-    try {
-      const response = await fetch("http://localhost:8080/api/labels/properties/download", { 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            labels: labels,       
-            lang: selectedCountry
-         }) 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [downloadLangs, setDownloadLangs] = useState<Array<keyof LanguageMap>>([selectedCountryForPreview]);
+  const [downloadFilename, setDownloadFilename] = useState('');
+
+  const availableLangKeys = (['country1', 'country2', 'country3', 'country4', 'country5'] as Array<keyof LanguageMap>)
+    .filter(key => (langMap && langMap[key] && langMap[key].trim() !== '') || key === 'country1');
+
+  const executeDownload = async () => {
+    if (downloadLangs.length === 0) {
+      alert("ダウンロードする言語を選択してください。");
+      return;
+    }
+    if (!downloadFilename || downloadFilename.trim() === '') {
+        alert("ファイル名を入力してください。");
+        return;
+    }
+
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+
+    if (downloadLangs.length === 1) {
+      const countryKey = downloadLangs[0];
+      const content = generatePropertiesText(countryKey);
+      const blob = new Blob([bom, content], { type: "text/plain;charset=utf-8" });
+      const finalFilename = downloadFilename.endsWith(".properties") ? downloadFilename : downloadFilename + ".properties";
+      saveAs(blob, finalFilename);
+    } else {
+      const zip = new JSZip();
+
+      downloadLangs.forEach(countryKey => {
+        const langName = (langMap && langMap[countryKey]?.trim()) ? langMap[countryKey] : countryKey;
+        const filenameInZip = (langName && langName.trim() !== "")
+          ? `output_${langName}.properties`
+          : `output_${countryKey}.properties`;
+        const content = generatePropertiesText(countryKey);
+        zip.file(filenameInZip, new Blob([bom, content], { type: "text/plain;charset=utf-8" }));
       });
 
-      if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`プロパティ生成失敗 (HTTP ${response.status}): ${errorText}`);
+      try {
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const finalFilename = downloadFilename.endsWith(".zip") ? downloadFilename : downloadFilename + ".zip";
+        saveAs(zipBlob, finalFilename);
+      } catch (err) {
+        console.error("ZIPファイルの生成に失敗しました:", err);
+        alert("ZIPファイルの生成に失敗しました。");
       }
-
-      const text = await response.text(); 
-
-      const selectedLangName = langMap ? langMap[selectedCountry] : selectedCountry;
-      const defaultFilename = (selectedLangName && selectedLangName.trim() !== "") 
-        ? `output_${selectedLangName}.properties` 
-        : "output.properties";
-
-      const filename = prompt("ファイル名を入力してください", defaultFilename) || defaultFilename;
-
-      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-      const blob = new Blob([bom, text], { type: "text/plain;charset=utf-8" }); 
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename.endsWith(".properties") ? filename : filename + ".properties"; 
-      a.click();
-      window.URL.revokeObjectURL(url);
-
-    } catch (err: any) {
-      console.error(err);
-      alert(`プロパティ生成に失敗しました: ${err.message}`); 
     }
+    setIsModalOpen(false);
   };
 
   const handleCopyPreview = () => {
@@ -98,13 +115,64 @@ export const MessageResourceConvert = () => {
     }
   };
 
-  const generatePreviewText = () => {
+  const generatePropertiesText = (countryKey: keyof LanguageMap): string => {
+    if (!countryKey || !labels || labels.length === 0) return "";
     return labels.map(label => {
         const key = label.messageId || label.objectID;
-        const value = label[selectedCountry] || "";
+        const value = label[countryKey] || "";
         return `${key}=${value}`;
       }).join("\n");
   }
+
+  const getDisplayLanguageName = (countryKey: keyof LanguageMap): string => {
+    const mappedName = langMap?.[countryKey];
+    return (mappedName && mappedName.trim() !== '') ? `${mappedName} (${countryKey})` : countryKey;
+  }
+
+  const openDownloadModal = () => {
+    if (downloadLangs.length === 1) {
+      const countryKey = downloadLangs[0];
+      const langName = (langMap && langMap[countryKey]?.trim()) ? langMap[countryKey] : countryKey;
+      setDownloadFilename((langName && langName.trim() !== "") ? `output_${langName}.properties` : "output.properties");
+    } else if (downloadLangs.length > 1) {
+      setDownloadFilename("messages.zip");
+    } else {
+      const previewLangKey = selectedCountryForPreview;
+      const previewLangName = (langMap && langMap[previewLangKey]?.trim()) ? langMap[previewLangKey] : previewLangKey;
+      setDownloadFilename((previewLangName && previewLangName.trim() !== "") ? `output_${previewLangName}.properties` : "output.properties");
+      setDownloadLangs([previewLangKey]);
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleModalLangChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const key = event.target.name as keyof LanguageMap;
+    const isChecked = event.target.checked;
+
+    setDownloadLangs(prev => {
+        const newLangs = isChecked
+          ? [...prev, key]
+          : prev.filter(lang => lang !== key);
+
+        if (newLangs.length === 1) {
+            const countryKey = newLangs[0];
+            const langName = (langMap && langMap[countryKey]?.trim()) ? langMap[countryKey] : countryKey;
+            setDownloadFilename((langName && langName.trim() !== "") ? `output_${langName}.properties` : "output.properties");
+        } else if (newLangs.length > 1) {
+            setDownloadFilename("output.zip");
+        } else {
+            setDownloadFilename("");
+        }
+        return newLangs;
+    });
+  };
+
+  useEffect(() => {
+      setDownloadLangs([selectedCountryForPreview]);
+      const langName = (langMap && langMap[selectedCountryForPreview]?.trim()) ? langMap[selectedCountryForPreview] : selectedCountryForPreview;
+      setDownloadFilename((langName && langName.trim() !== "") ? `output_${langName}.properties` : "output.properties");
+  }, [selectedCountryForPreview, langMap]);
+
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
@@ -119,8 +187,8 @@ export const MessageResourceConvert = () => {
             mb: 2,
           }}
         >
-          <Button 
-            variant="outlined" 
+          <Button
+            variant="outlined"
             onClick={() => navigate(-1)}
             startIcon={<ArrowBackIcon />}
             sx={{ mr: 2 }}
@@ -133,7 +201,7 @@ export const MessageResourceConvert = () => {
           <Button
             size="large"
             variant="contained"
-            onClick={handleDownload}
+            onClick={openDownloadModal}
             startIcon={<DownloadIcon />}
           >
             ダウンロード
@@ -146,28 +214,28 @@ export const MessageResourceConvert = () => {
             <Select
               labelId="language-select-label"
               label="表示言語"
-              value={selectedCountry}
-              onChange={(e: SelectChangeEvent<string>) => setSelectedCountry(e.target.value as keyof LanguageMap)}
+              value={selectedCountryForPreview}
+              onChange={(e: SelectChangeEvent<string>) => setSelectedCountryForPreview(e.target.value as keyof LanguageMap)}
             >
-              <MenuItem value="country1">{langMap?.country1 && langMap.country1.trim() !== '' ? `${langMap.country1} (Country1)` : 'Country1'}</MenuItem>
-              <MenuItem value="country2">{langMap?.country2 && langMap.country2.trim() !== '' ? `${langMap.country2} (Country2)` : 'Country2'}</MenuItem>
-              <MenuItem value="country3">{langMap?.country3 && langMap.country3.trim() !== '' ? `${langMap.country3} (Country3)` : 'Country3'}</MenuItem>
-              <MenuItem value="country4">{langMap?.country4 && langMap.country4.trim() !== '' ? `${langMap.country4} (Country4)` : 'Country4'}</MenuItem>
-              <MenuItem value="country5">{langMap?.country5 && langMap.country5.trim() !== '' ? `${langMap.country5} (Country5)` : 'Country5'}</MenuItem>
+              {availableLangKeys.map((countryKey) => (
+                <MenuItem key={countryKey} value={countryKey}>
+                  {getDisplayLanguageName(countryKey)}
+                </MenuItem>
+               ))}
             </Select>
           </FormControl>
         </Box>
 
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'flex-end',
             mb: 1
           }}
         >
-          <Button 
-            onClick={handleCopyPreview} 
+          <Button
+            onClick={handleCopyPreview}
             size="medium"
             variant="outlined"
             startIcon={<ContentCopyIcon />}
@@ -180,7 +248,7 @@ export const MessageResourceConvert = () => {
           <textarea
             ref={previewTextareaRef}
             readOnly
-            value={generatePreviewText()}
+            value={generatePropertiesText(selectedCountryForPreview)}
             style={{
               width: '100%',
               height: '600px',
@@ -193,10 +261,57 @@ export const MessageResourceConvert = () => {
               whiteSpace: 'pre',
               overflow: 'auto',
               resize: 'none',
-    }}
+            }}
           />
         </Box>
       </Paper>
+
+      <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>ダウンロード設定</DialogTitle>
+        <DialogContent>
+          <Typography variant="subtitle1" gutterBottom>言語選択 (複数可)</Typography>
+          <FormGroup sx={{ mb: 3 }}>
+            {availableLangKeys.map((countryKey) => (
+              <FormControlLabel
+                key={countryKey}
+                control={
+                  <Checkbox
+                    checked={downloadLangs.includes(countryKey)}
+                    onChange={handleModalLangChange}
+                    name={countryKey}
+                  />
+                }
+                label={getDisplayLanguageName(countryKey)}
+              />
+            ))}
+          </FormGroup>
+
+          <Typography variant="subtitle1" gutterBottom>ファイル名</Typography>
+          <TextField
+            fullWidth
+            margin="dense"
+            label={downloadLangs.length > 1 ? "ZIPファイル名" : "ファイル名"}
+            value={downloadFilename}
+            onChange={(e) => setDownloadFilename(e.target.value)}
+            helperText={
+              downloadLangs.length > 1
+              ? ".zip は自動で付与されます"
+              : ".properties は自動で付与されます"
+            }
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsModalOpen(false)}>キャンセル</Button>
+          <Button
+            variant="contained"
+            onClick={executeDownload}
+            disabled={downloadLangs.length === 0 || !downloadFilename || downloadFilename.trim() === ''}
+          >
+            ダウンロード実行
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Container>
   );
 };
