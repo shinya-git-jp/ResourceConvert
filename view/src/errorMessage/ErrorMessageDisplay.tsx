@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
 import type { DbConfig } from "../types/DbConfig";
-import useDebounce from "../hooks/useDebounce"; // 作成した useDebounce フックをインポート
+import useDebounce from "../hooks/useDebounce";
 
 // MUIコンポーネントをインポート
 import {
@@ -72,7 +72,7 @@ const ErrorMessageDisplay: React.FC = () => {
 
     setLoading(true);
 
-    const { name, ...configForBackend } = selectedConfig;
+    const { name, languageMap, ...configForBackend } = selectedConfig;
     const requestBody = {
       ...configForBackend,
       filter: currentFilter // 現在のフィルター値を渡す
@@ -92,16 +92,16 @@ const ErrorMessageDisplay: React.FC = () => {
       }
       const data: ErrorMessage[] = await response.json();
       setMessages(data);
-      setSelectedObjectIDs(new Set()); // データ取得成功時にクリア
+      setSelectedObjectIDs(new Set());
     } catch (err: any) {
       console.error("エラーメッセージ取得失敗:", err);
       alert(err.message || "エラーメッセージ取得失敗");
-      setMessages([]); // エラー時クリア
-      setSelectedObjectIDs(new Set()); // エラー時クリア
+      setMessages([]);
+      setSelectedObjectIDs(new Set());
     } finally {
       setLoading(false);
     }
-  }, [dbConfigs]); // dbConfigs が変更された時だけ関数を再生成
+  }, [dbConfigs]);
 
   // DB設定をローカルストレージから読み込む Effect
   useEffect(() => {
@@ -115,7 +115,7 @@ const ErrorMessageDisplay: React.FC = () => {
   // DB接続設定が変更されたら自動でデータ取得する Effect
   useEffect(() => {
     if (selectedConfigName) {
-      fetchData(selectedConfigName, filter); // filterも渡す
+      fetchData(selectedConfigName, filter);
     } else {
       setMessages([]);
       setSelectedObjectIDs(new Set());
@@ -125,33 +125,36 @@ const ErrorMessageDisplay: React.FC = () => {
   // デバウンスされたフィルター値が変更されたらデータ再取得する Effect
   useEffect(() => {
     if (selectedConfigName) {
-      fetchData(selectedConfigName, debouncedFilter); // debouncedFilter を使う
+      fetchData(selectedConfigName, debouncedFilter);
     }
   }, [debouncedFilter, selectedConfigName, fetchData]);
 
   // データ更新後 (loadingがfalseになった後) にフォーカスを復元する Effect
   useEffect(() => {
-    if (!loading && focusedInputId) { // ローディング完了後、IDがあれば
+    if (!loading && focusedInputId) { 
       let inputToFocus: HTMLInputElement | null = null;
       switch (focusedInputId) {
-        case 'filter-error-objectID': // ID名を修正
+        case 'filter-error-objectID':
           inputToFocus = objectIdInputRef.current;
           break;
-        case 'filter-errorNo':        // ID名を修正
+        case 'filter-errorNo':
           inputToFocus = errorNoInputRef.current;
           break;
-        case 'filter-errorType':      // ID名を修正
+        case 'filter-errorType':
           inputToFocus = errorTypeInputRef.current;
           break;
-        case 'filter-errorMessage':   // ID名を修正
+        case 'filter-errorMessage':
           inputToFocus = messageInputRef.current;
           break;
       }
       if (inputToFocus) {
-         setTimeout(() => inputToFocus?.focus(), 0); // 微小な遅延でフォーカス
+         setTimeout(() => inputToFocus?.focus(), 0);
       }
     }
-  }, [loading, focusedInputId]); // loading 変更時にチェック
+  }, [loading, focusedInputId]);
+
+  const selectedConfig = dbConfigs.find(c => c.name === selectedConfigName);
+  const langMap = selectedConfig?.languageMap;
 
   // 変換画面への遷移
   const handleNavigateToConvert = () => {
@@ -164,7 +167,7 @@ const ErrorMessageDisplay: React.FC = () => {
         return;
     }
 
-    navigate("/error-messages-xml", { state: { messages: selectedMessages } });
+    navigate("/error-messages-xml", { state: { messages: selectedMessages, languageMap: langMap } });
   };
 
   // 行選択のトグル
@@ -229,15 +232,15 @@ const ErrorMessageDisplay: React.FC = () => {
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          {/* DB接続設定 Select */}
+          {/* 環境設定 Select */}
           <FormControl sx={{ minWidth: 240, mr: 2 }} size="small">
-            <InputLabel id="db-config-select-label">DB接続設定</InputLabel>
+            <InputLabel id="db-config-select-label">環境設定</InputLabel>
             <Select
               labelId="db-config-select-label"
-              label="DB接続設定"
+              label="環境設定"
               value={selectedConfigName}
               onChange={(e: SelectChangeEvent<string>) => setSelectedConfigName(e.target.value)}
-              disabled={loading} // ローディング中は無効化
+              disabled={loading}
             >
               <MenuItem value="">
                 <em>-- 選択してください --</em>
@@ -257,7 +260,7 @@ const ErrorMessageDisplay: React.FC = () => {
         <Paper elevation={1} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2 }}>
           <SearchIcon color="action" sx={{ mr: 1 }} />
           <TextField
-            id="filter-error-objectID" // ID修正
+            id="filter-error-objectID"
             name="objectID"
             inputRef={objectIdInputRef}
             label="ObjectID (部分一致)"
@@ -267,10 +270,10 @@ const ErrorMessageDisplay: React.FC = () => {
             value={filter.objectID}
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName} // ローディング中や未選択時は無効化
+            disabled={loading || !selectedConfigName}
           />
           <TextField
-            id="filter-errorNo"        // ID修正
+            id="filter-errorNo"
             name="errorNo"
             inputRef={errorNoInputRef}
             label="ErrorNo (部分一致)"
@@ -280,10 +283,10 @@ const ErrorMessageDisplay: React.FC = () => {
             value={filter.errorNo}
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName} // ローディング中や未選択時は無効化
+            disabled={loading || !selectedConfigName}
           />
           <TextField
-            id="filter-errorType"      // ID修正
+            id="filter-errorType"
             name="errorType"
             inputRef={errorTypeInputRef}
             label="ErrorType (部分一致)"
@@ -293,10 +296,10 @@ const ErrorMessageDisplay: React.FC = () => {
             value={filter.errorType}
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName} // ローディング中や未選択時は無効化
+            disabled={loading || !selectedConfigName}
           />
           <TextField
-            id="filter-errorMessage"   // ID修正
+            id="filter-errorMessage"
             name="message"
             inputRef={messageInputRef}
             label="メッセージ (部分一致)"
@@ -306,7 +309,7 @@ const ErrorMessageDisplay: React.FC = () => {
             value={filter.message}
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName} // ローディング中や未選択時は無効化
+            disabled={loading || !selectedConfigName}
           />
         </Paper>
 
@@ -356,11 +359,11 @@ const ErrorMessageDisplay: React.FC = () => {
                       <TableCell sx={{ minWidth: 120 }}>ErrorNo</TableCell>
                       <TableCell sx={{ minWidth: 100 }}>ErrorType</TableCell>
                       <TableCell sx={{ minWidth: 150 }}>MessageObjectID</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>country1</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>country2</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>country3</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>country4</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>country5</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country1 && langMap.country1.trim() !== '' ? `${langMap.country1} (Country1)` : 'Country1'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country2 && langMap.country2.trim() !== '' ? `${langMap.country2} (Country2)` : 'Country2'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country3 && langMap.country3.trim() !== '' ? `${langMap.country3} (Country3)` : 'Country3'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country4 && langMap.country4.trim() !== '' ? `${langMap.country4} (Country4)` : 'Country4'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country5 && langMap.country5.trim() !== '' ? `${langMap.country5} (Country5)` : 'Country5'}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -415,7 +418,7 @@ const ErrorMessageDisplay: React.FC = () => {
           </>
         )}
 
-        {/* DB設定が未選択の場合の表示 */}
+        {/* 環境設定が未選択の場合の表示 */}
         {!loading && !selectedConfigName && (
            <Box
             sx={{
@@ -427,7 +430,7 @@ const ErrorMessageDisplay: React.FC = () => {
             }}
           >
             <Typography sx={{ fontSize: "1.3rem", p: 4, textAlign: 'center', mb:20 }}>
-               DB接続設定を選択してください
+               環境設定を選択してください
             </Typography>
           </Box>
         )}

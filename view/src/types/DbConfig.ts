@@ -1,3 +1,10 @@
+export interface LanguageMap {
+  country1: string;
+  country2: string;
+  country3: string;
+  country4: string;
+  country5: string;
+}
 export interface DbConfig {
   name: string;
   dbType: "MySQL" | "PostgreSQL" | "Oracle" | "SQLServer";
@@ -6,4 +13,5 @@ export interface DbConfig {
   dbName: string;
   username: string;
   password: string;
+  languageMap: LanguageMap;
 }

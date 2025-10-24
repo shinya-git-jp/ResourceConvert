@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import type { DbConfig } from "../types/DbConfig";
+import type { DbConfig, LanguageMap } from "../types/DbConfig";
 import {
   Box,
   Button,
@@ -28,6 +28,14 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 const LOCAL_STORAGE_KEY = "dbConfigs";
 
+const defaultLanguageMap: LanguageMap = {
+  country1: "en",
+  country2: "",
+  country3: "",
+  country4: "",
+  country5: "",
+};
+
 const DbConnection: React.FC = () => {
   const [configs, setConfigs] = useState<DbConfig[]>([]);
   const [currentConfig, setCurrentConfig] = useState<DbConfig>({
@@ -38,6 +46,7 @@ const DbConnection: React.FC = () => {
     dbName: "",
     username: "",
     password: "",
+    languageMap: defaultLanguageMap,
   });
   const [showPassword, setShowPassword] = useState(false); 
   const [currentTab, setCurrentTab] = useState(0);
@@ -65,7 +74,13 @@ const DbConnection: React.FC = () => {
 
   const handleSelect = (name: string) => {
     const selected = configs.find((c) => c.name === name);
-    if (selected) setCurrentConfig({...selected, port: selected.port ?? ''});
+    if (selected) {
+      setCurrentConfig({
+        ...selected,
+        port: selected.port ?? '',
+        languageMap: selected.languageMap || defaultLanguageMap,
+      });
+    }
   };
 
   const handleDelete = (e: React.MouseEvent, name: string) => {
@@ -107,7 +122,9 @@ const DbConnection: React.FC = () => {
       dbName: "",
       username: "",
       password: "",
+      languageMap: defaultLanguageMap,
     });
+    setCurrentTab(0);
   };
 
   // フォーム入力の汎用ハンドラ
@@ -139,6 +156,17 @@ const DbConnection: React.FC = () => {
   });
 };
 
+  const handleLanguageMapChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setCurrentConfig(prev => ({
+      ...prev,
+      languageMap: {
+        ...prev.languageMap,
+        [name]: value,
+      },
+    }));
+  };
+
   const renderForm = () => (
     <Paper elevation={3} sx={{ p: 3 }}>
       <Box
@@ -150,7 +178,7 @@ const DbConnection: React.FC = () => {
         }}
       >
         <Typography variant="h6">
-          {currentConfig.name ? "データベース接続設定-修正" : "データベース接続設定-新規"}
+          {currentConfig.name ? "環境設定-修正" : "環境設定-新規"}
         </Typography>
         <Button variant="contained" onClick={handleSave}>
           保存
@@ -159,8 +187,8 @@ const DbConnection: React.FC = () => {
 
       <Tabs value={currentTab} onChange={(_, newValue) => setCurrentTab(newValue)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="データベース設定" />
-        {/* <Tab label="言語設定" disabled />
-        <Tab label="出力設定" disabled /> */}
+        <Tab label="言語設定" />
+        {/* <Tab label="出力設定" disabled /> */}
       </Tabs>
 
       {currentTab === 0 && (
@@ -263,6 +291,45 @@ const DbConnection: React.FC = () => {
           >
             接続確認
           </Button>
+        </Box>
+      )}
+      {currentTab === 1 && (
+        <Box sx={{ p: 2 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            データベースの各カラム（Country1〜5）が、どの言語に対応するかを設定します。
+          </Typography>
+          <TextField
+            fullWidth margin="normal" label="Country1"
+            name="country1"
+            value={currentConfig.languageMap.country1}
+            onChange={handleLanguageMapChange}
+            helperText="例: en"
+          />
+          <TextField
+            fullWidth margin="normal" label="Country2"
+            name="country2"
+            value={currentConfig.languageMap.country2}
+            onChange={handleLanguageMapChange}
+            helperText="例: ja"
+          />
+          <TextField
+            fullWidth margin="normal" label="Country3"
+            name="country3"
+            value={currentConfig.languageMap.country3}
+            onChange={handleLanguageMapChange}
+          />
+          <TextField
+            fullWidth margin="normal" label="Country4"
+            name="country4"
+            value={currentConfig.languageMap.country4}
+            onChange={handleLanguageMapChange}
+          />
+          <TextField
+            fullWidth margin="normal" label="Country5"
+            name="country5"
+            value={currentConfig.languageMap.country5}
+            onChange={handleLanguageMapChange}
+          />
         </Box>
       )}
     </Paper>

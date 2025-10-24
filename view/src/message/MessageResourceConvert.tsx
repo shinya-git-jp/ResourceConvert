@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useRef } from "react";
 import "../App.css";
+import type { LanguageMap } from "../types/DbConfig";
 
 // MUIコンポーネントをインポート
 import {
@@ -34,9 +35,11 @@ interface EditableLabel {
 export const MessageResourceConvert = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const initialLabels: EditableLabel[] = (location.state as { labels: EditableLabel[] })?.labels || [];
+  const state = location.state as { labels: EditableLabel[], languageMap?: LanguageMap };
+  const initialLabels: EditableLabel[] = state?.labels || [];
+  const langMap = state?.languageMap;
   const [labels] = useState<EditableLabel[]>(initialLabels);
-  const [selectedCountry, setSelectedCountry] = useState<keyof EditableLabel>("country1");
+  const [selectedCountry, setSelectedCountry] = useState<keyof LanguageMap>("country1");
   const previewTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ダウンロード用バックエンド呼び出し
@@ -58,7 +61,12 @@ export const MessageResourceConvert = () => {
 
       const text = await response.text(); 
 
-      const filename = prompt("ファイル名を入力してください", "output.properties") || "output.properties";
+      const selectedLangName = langMap ? langMap[selectedCountry] : selectedCountry;
+      const defaultFilename = (selectedLangName && selectedLangName.trim() !== "") 
+        ? `output_${selectedLangName}.properties` 
+        : "output.properties";
+
+      const filename = prompt("ファイル名を入力してください", defaultFilename) || defaultFilename;
 
       const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
       const blob = new Blob([bom, text], { type: "text/plain;charset=utf-8" }); 
@@ -139,13 +147,13 @@ export const MessageResourceConvert = () => {
               labelId="language-select-label"
               label="表示言語"
               value={selectedCountry}
-              onChange={(e: SelectChangeEvent<string>) => setSelectedCountry(e.target.value as keyof EditableLabel)}
+              onChange={(e: SelectChangeEvent<string>) => setSelectedCountry(e.target.value as keyof LanguageMap)}
             >
-              <MenuItem value="country1">Country1</MenuItem>
-              <MenuItem value="country2">Country2</MenuItem>
-              <MenuItem value="country3">Country3</MenuItem>
-              <MenuItem value="country4">Country4</MenuItem>
-              <MenuItem value="country5">Country5</MenuItem>
+              <MenuItem value="country1">{langMap?.country1 && langMap.country1.trim() !== '' ? `${langMap.country1} (Country1)` : 'Country1'}</MenuItem>
+              <MenuItem value="country2">{langMap?.country2 && langMap.country2.trim() !== '' ? `${langMap.country2} (Country2)` : 'Country2'}</MenuItem>
+              <MenuItem value="country3">{langMap?.country3 && langMap.country3.trim() !== '' ? `${langMap.country3} (Country3)` : 'Country3'}</MenuItem>
+              <MenuItem value="country4">{langMap?.country4 && langMap.country4.trim() !== '' ? `${langMap.country4} (Country4)` : 'Country4'}</MenuItem>
+              <MenuItem value="country5">{langMap?.country5 && langMap.country5.trim() !== '' ? `${langMap.country5} (Country5)` : 'Country5'}</MenuItem>
             </Select>
           </FormControl>
         </Box>

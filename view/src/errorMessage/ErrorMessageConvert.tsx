@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
+import type { LanguageMap } from "../types/DbConfig";
 
 // MUIコンポーネントをインポート
 import {
@@ -23,10 +24,12 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 const ErrorMessageXmlConvert: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const initialMessages: ErrorMessage[] = (location.state as { messages: ErrorMessage[] })?.messages || [];
+    const state = location.state as { messages: ErrorMessage[], languageMap?: LanguageMap };
+    const initialMessages: ErrorMessage[] = state?.messages || [];
+    const langMap = state?.languageMap;
 
     const [messages] = useState<ErrorMessage[]>(initialMessages);
-    const [selectedLang, setSelectedLang] = useState<keyof ErrorMessage>("country1");
+    const [selectedLang, setSelectedLang] = useState<keyof LanguageMap>("country1");
     const previewTextareaRef = useRef<HTMLTextAreaElement>(null);
 
     // XMLプレビューを生成する
@@ -43,7 +46,7 @@ const ErrorMessageXmlConvert: React.FC = () => {
                 type = "info"; //デフォルト
             }
 
-            const messageText = msg[selectedLang] || "";
+            const messageText = msg[selectedLang as keyof ErrorMessage] || "";
             return `  <error code="${msg.errorNo}">
     <type>${type}</type>
     <message>${messageText}</message>
@@ -57,7 +60,12 @@ const ErrorMessageXmlConvert: React.FC = () => {
 
     // バックエンドでXML生成してダウンロード
     const handleDownload = async () => {
-        const filename = prompt("ファイル名を入力してください", "output.xml") || "output.xml";
+        const selectedLangName = langMap ? langMap[selectedLang] : selectedLang;
+        const defaultFilename = (selectedLangName && selectedLangName.trim() !== "")
+          ? `output_${selectedLangName}.xml`
+          : "output.xml";
+          
+        const filename = prompt("ファイル名を入力してください", defaultFilename) || defaultFilename;
         try {
             const response = await fetch(
                 "http://localhost:8080/api/error-messages/xml/download",
@@ -149,13 +157,13 @@ const ErrorMessageXmlConvert: React.FC = () => {
                         labelId="language-select-label"
                         label="表示言語"
                         value={selectedLang}
-                        onChange={(e: SelectChangeEvent<string>) => setSelectedLang(e.target.value as keyof ErrorMessage)}
+                        onChange={(e: SelectChangeEvent<string>) => setSelectedLang(e.target.value as keyof LanguageMap)}
                     >
-                        <MenuItem value="country1">Country1</MenuItem>
-                        <MenuItem value="country2">Country2</MenuItem>
-                        <MenuItem value="country3">Country3</MenuItem>
-                        <MenuItem value="country4">Country4</MenuItem>
-                        <MenuItem value="country5">Country5</MenuItem>
+                        <MenuItem value="country1">{langMap?.country1 && langMap.country1.trim() !== '' ? `${langMap.country1} (Country1)` : 'Country1'}</MenuItem>
+                        <MenuItem value="country2">{langMap?.country2 && langMap.country2.trim() !== '' ? `${langMap.country2} (Country2)` : 'Country2'}</MenuItem>
+                        <MenuItem value="country3">{langMap?.country3 && langMap.country3.trim() !== '' ? `${langMap.country3} (Country3)` : 'Country3'}</MenuItem>
+                        <MenuItem value="country4">{langMap?.country4 && langMap.country4.trim() !== '' ? `${langMap.country4} (Country4)` : 'Country4'}</MenuItem>
+                        <MenuItem value="country5">{langMap?.country5 && langMap.country5.trim() !== '' ? `${langMap.country5} (Country5)` : 'Country5'}</MenuItem>
                     </Select>
                 </FormControl>
                 </Box>

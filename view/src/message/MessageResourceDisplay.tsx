@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import "../App.css"; // 必要に応じて App.css もしくは index.css をインポート
+import "../App.css";
 import type { DbConfig } from "../types/DbConfig";
-import useDebounce from "../hooks/useDebounce"; // 作成した useDebounce フックをインポート
+import useDebounce from "../hooks/useDebounce";
 
 // MUIコンポーネントをインポート
 import {
@@ -86,7 +86,7 @@ function MessageResourceDisplay() {
 
     setLoading(true);
 
-    const { name, ...configForBackend } = selectedConfig;
+    const { name, languageMap, ...configForBackend } = selectedConfig;
     const requestBody = {
       ...configForBackend,
       filter: currentFilter // 現在のフィルター値を渡す
@@ -107,12 +107,12 @@ function MessageResourceDisplay() {
       const data: SLocalizationLabel[] = await response.json();
       const editableData = data.map(d => ({ ...d, messageId: "" }));
       setLabels(editableData);
-      setSelectedObjectIDs(new Set()); // データ取得成功時に選択をクリア
+      setSelectedObjectIDs(new Set());
     } catch (error: any) {
       console.error(error);
       alert(error.message || "データ取得に失敗しました");
-      setLabels([]); // エラー時クリア
-      setSelectedObjectIDs(new Set()); // エラー時クリア
+      setLabels([]);
+      setSelectedObjectIDs(new Set());
     } finally {
       setLoading(false);
     }
@@ -129,10 +129,10 @@ function MessageResourceDisplay() {
 
   // DB接続設定が変更されたら自動でデータ取得する Effect
   useEffect(() => {
-    if (selectedConfigName) { // 名前が選択されている場合のみ
-      fetchData(selectedConfigName, filter); // filterも渡す
+    if (selectedConfigName) {
+      fetchData(selectedConfigName, filter);
     } else {
-      setLabels([]); // 未選択になったらクリア
+      setLabels([]);
       setSelectedObjectIDs(new Set());
     }
     // 初回マウント時と selectedConfigName 変更時に実行
@@ -140,7 +140,6 @@ function MessageResourceDisplay() {
 
   // デバウンスされたフィルター値が変更されたらデータ再取得する Effect
   useEffect(() => {
-    // selectedConfigName が選択されている場合のみ再取得を実行
     if (selectedConfigName) {
       fetchData(selectedConfigName, debouncedFilter); // debouncedFilter を使う
     }
@@ -162,13 +161,14 @@ function MessageResourceDisplay() {
           inputToFocus = messageInputRef.current;
           break;
       }
-      // 少し遅延させてフォーカスを試みる (DOM更新直後だと失敗することがあるため)
       if (inputToFocus) {
         setTimeout(() => inputToFocus?.focus(), 0);
       }
     }
   }, [loading, focusedInputId]); // loading の状態が変わった時にチェック
 
+  const selectedConfig = dbConfigs.find(c => c.name === selectedConfigName);
+  const langMap = selectedConfig?.languageMap;
 
   // 変換画面への遷移
   const handleConvert = () => {
@@ -186,7 +186,7 @@ function MessageResourceDisplay() {
       messageId: label.messageId?.trim() || label.objectID,
     }));
 
-    navigate("/properties", { state: { labels: updatedLabels } });
+    navigate("/properties", { state: { labels: updatedLabels, languageMap: langMap } });
   };
 
   // 行選択のトグル
@@ -253,10 +253,10 @@ function MessageResourceDisplay() {
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           {/* DB接続設定 Select */}
           <FormControl sx={{ minWidth: 240, mr: 2 }} size="small">
-            <InputLabel id="db-config-select-label">DB接続設定</InputLabel>
+            <InputLabel id="db-config-select-label">環境設定</InputLabel>
             <Select
               labelId="db-config-select-label"
-              label="DB接続設定"
+              label="環境設定"
               value={selectedConfigName}
               onChange={(e: SelectChangeEvent<string>) => setSelectedConfigName(e.target.value)}
               disabled={loading} // ローディング中は無効化
@@ -279,43 +279,43 @@ function MessageResourceDisplay() {
         <Paper elevation={1} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2 }}>
           <SearchIcon color="action" sx={{ mr: 1 }} />
           <TextField
-            id="filter-objectID" // id を追加
-            name="objectID"      // name を追加
-            inputRef={objectIdInputRef} // ref を設定
+            id="filter-objectID"
+            name="objectID"
+            inputRef={objectIdInputRef}
             label="ObjectID (部分一致)"
             variant="outlined"
             size="small"
             fullWidth
             value={filter.objectID}
-            onChange={handleFilterChange} // 共通ハンドラに変更
-            onFocus={handleFilterFocus}   // onFocus ハンドラを追加
-            disabled={loading || !selectedConfigName} // ローディング中や未選択時は無効化
+            onChange={handleFilterChange}
+            onFocus={handleFilterFocus}
+            disabled={loading || !selectedConfigName}
           />
           <TextField
-            id="filter-categoryName" // id を追加
-            name="categoryName"       // name を追加
-            inputRef={categoryInputRef} // ref を設定
+            id="filter-categoryName"
+            name="categoryName"
+            inputRef={categoryInputRef}
             label="Category (部分一致)"
             variant="outlined"
             size="small"
             fullWidth
             value={filter.categoryName}
-            onChange={handleFilterChange} // 共通ハンドラに変更
-            onFocus={handleFilterFocus}   // onFocus ハンドラを追加
-            disabled={loading || !selectedConfigName} // ローディング中や未選択時は無効化
+            onChange={handleFilterChange}
+            onFocus={handleFilterFocus}
+            disabled={loading || !selectedConfigName}
           />
           <TextField
-            id="filter-message" // id を追加
-            name="message"       // name を追加
-            inputRef={messageInputRef} // ref を設定
+            id="filter-message"
+            name="message"
+            inputRef={messageInputRef}
             label="メッセージ (部分一致)"
             variant="outlined"
             size="small"
             fullWidth
             value={filter.message}
-            onChange={handleFilterChange} // 共通ハンドラに変更
-            onFocus={handleFilterFocus}   // onFocus ハンドラを追加
-            disabled={loading || !selectedConfigName} // ローディング中や未選択時は無効化
+            onChange={handleFilterChange}
+            onFocus={handleFilterFocus}
+            disabled={loading || !selectedConfigName}
           />
         </Paper>
 
@@ -364,11 +364,11 @@ function MessageResourceDisplay() {
                       <TableCell sx={{ minWidth: 170 }}>メッセージID（任意）</TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Object ID</TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Category</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>Country1</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>Country2</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>Country3</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>Country4</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>Country5</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country1 && langMap.country1.trim() !== '' ? `${langMap.country1} (Country1)` : 'Country1'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country2 && langMap.country2.trim() !== '' ? `${langMap.country2} (Country2)` : 'Country2'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country3 && langMap.country3.trim() !== '' ? `${langMap.country3} (Country3)` : 'Country3'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country4 && langMap.country4.trim() !== '' ? `${langMap.country4} (Country4)` : 'Country4'}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>{langMap?.country5 && langMap.country5.trim() !== '' ? `${langMap.country5} (Country5)` : 'Country5'}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -393,9 +393,8 @@ function MessageResourceDisplay() {
                             variant="standard"
                             size="small"
                             value={label.messageId ?? ""}
-                            placeholder={label.objectID} // プレースホルダーにObjectIDを表示
+                            placeholder={label.objectID}
                             onChange={(e) => {
-                              // labels ステートを直接更新
                               const newLabels = labels.map((l) =>
                                 l.objectID === label.objectID
                                   ? { ...l, messageId: e.target.value }
@@ -451,7 +450,7 @@ function MessageResourceDisplay() {
             }}
           >
             <Typography sx={{ fontSize: "1.3rem", p: 4, textAlign: 'center', mb:20 }}>
-              DB接続設定を選択してください
+              環境設定を選択してください
             </Typography>
           </Box>
         )}
