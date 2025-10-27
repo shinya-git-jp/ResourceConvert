@@ -65,8 +65,8 @@ export const MessageResourceConvert = () => {
       return;
     }
     if (!downloadFilename || downloadFilename.trim() === '') {
-        alert("ファイル名を入力してください。");
-        return;
+      alert("ファイル名を入力してください。");
+      return;
     }
 
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
@@ -118,10 +118,10 @@ export const MessageResourceConvert = () => {
   const generatePropertiesText = (countryKey: keyof LanguageMap): string => {
     if (!countryKey || !labels || labels.length === 0) return "";
     return labels.map(label => {
-        const key = label.messageId || label.objectID;
-        const value = label[countryKey] || "";
-        return `${key}=${value}`;
-      }).join("\n");
+      const key = label.messageId || label.objectID;
+      const value = label[countryKey] || "";
+      return `${key}=${value}`;
+    }).join("\n");
   }
 
   const getDisplayLanguageName = (countryKey: keyof LanguageMap): string => {
@@ -150,34 +150,34 @@ export const MessageResourceConvert = () => {
     const isChecked = event.target.checked;
 
     setDownloadLangs(prev => {
-        const newLangs = isChecked
-          ? [...prev, key]
-          : prev.filter(lang => lang !== key);
+      const newLangs = isChecked
+        ? [...prev, key]
+        : prev.filter(lang => lang !== key);
 
-        if (newLangs.length === 1) {
-            const countryKey = newLangs[0];
-            const langName = (langMap && langMap[countryKey]?.trim()) ? langMap[countryKey] : countryKey;
-            setDownloadFilename((langName && langName.trim() !== "") ? `output_${langName}.properties` : "output.properties");
-        } else if (newLangs.length > 1) {
-            setDownloadFilename("output.zip");
-        } else {
-            setDownloadFilename("");
-        }
-        return newLangs;
+      if (newLangs.length === 1) {
+        const countryKey = newLangs[0];
+        const langName = (langMap && langMap[countryKey]?.trim()) ? langMap[countryKey] : countryKey;
+        setDownloadFilename((langName && langName.trim() !== "") ? `output_${langName}.properties` : "output.properties");
+      } else if (newLangs.length > 1) {
+        setDownloadFilename("output.zip");
+      } else {
+        setDownloadFilename("");
+      }
+      return newLangs;
     });
   };
 
   useEffect(() => {
-      setDownloadLangs([selectedCountryForPreview]);
-      const langName = (langMap && langMap[selectedCountryForPreview]?.trim()) ? langMap[selectedCountryForPreview] : selectedCountryForPreview;
-      setDownloadFilename((langName && langName.trim() !== "") ? `output_${langName}.properties` : "output.properties");
+    setDownloadLangs([selectedCountryForPreview]);
+    const langName = (langMap && langMap[selectedCountryForPreview]?.trim()) ? langMap[selectedCountryForPreview] : selectedCountryForPreview;
+    setDownloadFilename((langName && langName.trim() !== "") ? `output_${langName}.properties` : "output.properties");
   }, [selectedCountryForPreview, langMap]);
 
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
+    <Container maxWidth="lg" sx={{ mt: 4, width: 1500 }}>
       <Typography variant="h5" component="h2" gutterBottom>
-            メッセージリソース変換
+        メッセージリソース変換
       </Typography>
       <Paper elevation={3} sx={{ p: 3, overflowX: 'auto' }}>
         <Box
@@ -221,7 +221,7 @@ export const MessageResourceConvert = () => {
                 <MenuItem key={countryKey} value={countryKey}>
                   {getDisplayLanguageName(countryKey)}
                 </MenuItem>
-               ))}
+              ))}
             </Select>
           </FormControl>
         </Box>
@@ -295,8 +295,8 @@ export const MessageResourceConvert = () => {
             onChange={(e) => setDownloadFilename(e.target.value)}
             helperText={
               downloadLangs.length > 1
-              ? ".zip は自動で付与されます"
-              : ".properties は自動で付与されます"
+                ? ".zip は自動で付与されます"
+                : ".properties は自動で付与されます"
             }
           />
         </DialogContent>

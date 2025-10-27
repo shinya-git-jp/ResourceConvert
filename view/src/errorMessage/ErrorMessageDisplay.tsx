@@ -130,10 +130,10 @@ const ErrorMessageDisplay: React.FC = () => {
 
         <Paper elevation={1} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2 }}>
           <SearchIcon color="action" sx={{ mr: 1 }} />
-          <TextField id="filter-error-objectID" name="objectID" inputRef={objectIdInputRef} label="ObjectID (部分一致)" variant="outlined" size="small" fullWidth value={filter.objectID} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
-          <TextField id="filter-errorNo" name="errorNo" inputRef={errorNoInputRef} label="ErrorNo (部分一致)" variant="outlined" size="small" fullWidth value={filter.errorNo} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
-          <TextField id="filter-errorType" name="errorType" inputRef={errorTypeInputRef} label="ErrorType (部分一致)" variant="outlined" size="small" fullWidth value={filter.errorType} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
-          <TextField id="filter-errorMessage" name="message" inputRef={messageInputRef} label="メッセージ (部分一致)" variant="outlined" size="small" fullWidth value={filter.message} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField id="filter-error-objectID" name="objectID" inputRef={objectIdInputRef} label="ObjectID" variant="outlined" size="small" fullWidth value={filter.objectID} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField id="filter-errorNo" name="errorNo" inputRef={errorNoInputRef} label="ErrorNo" variant="outlined" size="small" fullWidth value={filter.errorNo} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField id="filter-errorType" name="errorType" inputRef={errorTypeInputRef} label="ErrorType" variant="outlined" size="small" fullWidth value={filter.errorType} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField id="filter-errorMessage" name="message" inputRef={messageInputRef} label="エラーメッセージ" variant="outlined" size="small" fullWidth value={filter.message} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
         </Paper>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, minHeight: '52px' }}>
