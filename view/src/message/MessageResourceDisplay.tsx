@@ -48,7 +48,7 @@ function MessageResourceDisplay() {
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
 
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
 
   const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
