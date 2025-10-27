@@ -62,7 +62,7 @@ function MessageResourceDisplay() {
   const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
   const [page, setPage] = useState(0); // Current page number (0-based)
-  const [rowsPerPage, setRowsPerPage] = useState(50); // Items per page
+  const [rowsPerPage, setRowsPerPage] = useState(25); // Items per page
   const [totalCount, setTotalCount] = useState(0); // Total items matching filter
   const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>()); // Holds selected IDs across pages
   const [filter, setFilter] = useState({
@@ -240,7 +240,7 @@ function MessageResourceDisplay() {
       // データはバックエンドから取得 (これが最新のDBの状態)
       const selectedLabelsData: SLocalizationLabel[] = await response.json();
 
-      // ★★★ 修正箇所: バックエンドデータとフロントの入力値をマージ ★★★
+      //バックエンドデータとフロントの入力値をマージ
       const updatedLabels = selectedLabelsData.map(backendLabel => {
         // 現在表示されているページ(labels state)から同じIDのものを探す
         const frontendLabel = labels.find(l => l.objectID === backendLabel.objectID);
@@ -251,10 +251,9 @@ function MessageResourceDisplay() {
 
         return {
           ...backendLabel, // バックエンドからのデータをベースにする
-          messageId: messageIdValue, // フロントの入力値で上書き (あれば)
+          messageId: messageIdValue,
         };
       });
-      // ★★★ 修正箇所ここまで ★★★
 
       navigate("/properties", {
         state: { labels: updatedLabels, languageMap: langMap }
@@ -480,7 +479,6 @@ function MessageResourceDisplay() {
               variant="outlined"
               onClick={handleSelectPage}
               disabled={labels.length === 0 || loading || actionLoading || !selectedConfigName}
-              size="small"
             >
               このページを選択
             </Button>
@@ -491,9 +489,8 @@ function MessageResourceDisplay() {
                   variant="outlined"
                   onClick={handleSelectAllFiltered}
                   disabled={totalCount === 0 || loading || actionLoading || !selectedConfigName}
-                  size="small"
                 >
-                  フィルター全選択
+                  全件選択
                 </Button>
               </span>
             </Tooltip>
@@ -506,7 +503,6 @@ function MessageResourceDisplay() {
                   color="error"
                   variant="text"
                   startIcon={<ClearIcon fontSize="small" />}
-                  size="small"
                   sx={{ minWidth: 'auto', padding: '5px 6px', ml: 1 }}
                 >
                   選択クリア
