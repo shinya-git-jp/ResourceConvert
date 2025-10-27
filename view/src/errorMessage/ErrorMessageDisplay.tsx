@@ -4,7 +4,6 @@ import type { ErrorMessage } from "../types/ErrorMessage";
 import type { DbConfig } from "../types/DbConfig";
 import useDebounce from "../hooks/useDebounce";
 
-// MUIコンポーネントをインポート
 import {
   Container,
   Paper,
@@ -24,9 +23,15 @@ import {
   Checkbox,
   CircularProgress,
   TextField,
+  TablePagination,
+  Tooltip,
   type SelectChangeEvent,
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
+
+// APIレスポンス型
+interface PagedResponse<T> { content: T[]; totalElements: number; }
 
 const LOCAL_STORAGE_KEY = "dbConfigs";
 const TABLE_AREA_MIN_HEIGHT_PX = 600;
@@ -34,205 +39,79 @@ const TABLE_AREA_MIN_HEIGHT_PX = 600;
 const ErrorMessageDisplay: React.FC = () => {
   const [messages, setMessages] = useState<ErrorMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const navigate = useNavigate();
 
-  // DB接続設定関連の state
   const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
 
-  // 選択状態を管理する State
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+
   const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
 
-  // フィルター条件の state
-  const [filter, setFilter] = useState({
-    objectID: "",
-    errorNo: "",
-    errorType: "",
-    message: ""
-  });
-
-  // デバウンスされたフィルター値 (500ms)
+  const [filter, setFilter] = useState({ objectID: "", errorNo: "", errorType: "", message: "" });
   const debouncedFilter = useDebounce(filter, 500);
 
-  // フォーカス管理用の state と ref
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
   const objectIdInputRef = useRef<HTMLInputElement>(null);
   const errorNoInputRef = useRef<HTMLInputElement>(null);
   const errorTypeInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
 
-  // データ取得ロジック (useCallbackでメモ化)
-  const fetchData = useCallback(async (configName: string, currentFilter: typeof filter) => {
-    const selectedConfig = dbConfigs.find(c => c.name === configName);
-    if (!selectedConfig) {
-      setMessages([]);
-      setSelectedObjectIDs(new Set());
-      return;
-    }
+  // データ取得ロジック
+  const fetchData = useCallback(async (configName: string, currentFilter: typeof filter, currentPage: number, currentSize: number, shouldResetSelection: boolean = false) => { const selectedConfig = dbConfigs.find(c => c.name === configName); if (!selectedConfig) { setMessages([]); setTotalCount(0); setSelectedObjectIDs(new Set()); return; } setLoading(true); if (shouldResetSelection) { setSelectedObjectIDs(new Set()); } const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { ...configForBackend, filter: currentFilter, page: currentPage, size: currentSize }; try { const response = await fetch("http://localhost:8080/api/error-messages/fetch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) }); if (!response.ok) throw new Error(`データ取得失敗 (HTTP ${response.status})`); const data: PagedResponse<ErrorMessage> = await response.json(); setMessages(data.content); setTotalCount(data.totalElements); } catch (err: any) { console.error("エラーメッセージ取得失敗:", err); alert(err.message || "エラーメッセージ取得失敗"); setMessages([]); setTotalCount(0); if (shouldResetSelection) setSelectedObjectIDs(new Set()); } finally { setLoading(false); } }, [dbConfigs]);
 
-    setLoading(true);
-
-    const { name, languageMap, ...configForBackend } = selectedConfig;
-    const requestBody = {
-      ...configForBackend,
-      filter: currentFilter // 現在のフィルター値を渡す
-    };
-
-    try {
-      const response = await fetch("http://localhost:8080/api/error-messages/fetch", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`データ取得失敗 (HTTP ${response.status})`);
-      }
-      const data: ErrorMessage[] = await response.json();
-      setMessages(data);
-      setSelectedObjectIDs(new Set());
-    } catch (err: any) {
-      console.error("エラーメッセージ取得失敗:", err);
-      alert(err.message || "エラーメッセージ取得失敗");
-      setMessages([]);
-      setSelectedObjectIDs(new Set());
-    } finally {
-      setLoading(false);
-    }
-  }, [dbConfigs]);
-
-  // DB設定をローカルストレージから読み込む Effect
-  useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      const configs: DbConfig[] = JSON.parse(saved);
-      setDbConfigs(configs);
-    }
-  }, []);
-
-  // DB接続設定が変更されたら自動でデータ取得する Effect
-  useEffect(() => {
-    if (selectedConfigName) {
-      fetchData(selectedConfigName, filter);
-    } else {
-      setMessages([]);
-      setSelectedObjectIDs(new Set());
-    }
-  }, [selectedConfigName, fetchData]);
-
-  // デバウンスされたフィルター値が変更されたらデータ再取得する Effect
-  useEffect(() => {
-    if (selectedConfigName) {
-      fetchData(selectedConfigName, debouncedFilter);
-    }
-  }, [debouncedFilter, selectedConfigName, fetchData]);
-
-  // データ更新後 (loadingがfalseになった後) にフォーカスを復元する Effect
-  useEffect(() => {
-    if (!loading && focusedInputId) { 
-      let inputToFocus: HTMLInputElement | null = null;
-      switch (focusedInputId) {
-        case 'filter-error-objectID':
-          inputToFocus = objectIdInputRef.current;
-          break;
-        case 'filter-errorNo':
-          inputToFocus = errorNoInputRef.current;
-          break;
-        case 'filter-errorType':
-          inputToFocus = errorTypeInputRef.current;
-          break;
-        case 'filter-errorMessage':
-          inputToFocus = messageInputRef.current;
-          break;
-      }
-      if (inputToFocus) {
-         setTimeout(() => inputToFocus?.focus(), 0);
-      }
-    }
-  }, [loading, focusedInputId]);
+  // useEffect フック
+  useEffect(() => { const saved = localStorage.getItem(LOCAL_STORAGE_KEY); if (saved) { const configs: DbConfig[] = JSON.parse(saved); setDbConfigs(configs); } }, []);
+  useEffect(() => { if (selectedConfigName) { setPage(0); fetchData(selectedConfigName, filter, 0, rowsPerPage, true); } else { setMessages([]); setTotalCount(0); setSelectedObjectIDs(new Set()); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedConfigName, fetchData]);
+  useEffect(() => { if (selectedConfigName) { setPage(0); fetchData(selectedConfigName, debouncedFilter, 0, rowsPerPage, true); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [debouncedFilter, selectedConfigName, fetchData]);
+  useEffect(() => { if (selectedConfigName) { fetchData(selectedConfigName, filter, page, rowsPerPage, false); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page, rowsPerPage]);
+  useEffect(() => { if (!loading && focusedInputId) { let inputToFocus: HTMLInputElement | null = null; switch (focusedInputId) { case 'filter-error-objectID': inputToFocus = objectIdInputRef.current; break; case 'filter-errorNo': inputToFocus = errorNoInputRef.current; break; case 'filter-errorType': inputToFocus = errorTypeInputRef.current; break; case 'filter-errorMessage': inputToFocus = messageInputRef.current; break; } if (inputToFocus) setTimeout(() => inputToFocus?.focus(), 0); } }, [loading, focusedInputId]);
 
   const selectedConfig = dbConfigs.find(c => c.name === selectedConfigName);
   const langMap = selectedConfig?.languageMap;
 
-  // 変換画面への遷移
-  const handleNavigateToConvert = () => {
-    const selectedMessages = messages.filter(msg =>
-      selectedObjectIDs.has(msg.objectID)
-    );
+  // メインの変換ボタンハンドラ
+  const handleNavigateToConvert = async () => { if (selectedObjectIDs.size === 0) { alert("変換するデータが選択されていません"); return; } if (!selectedConfig) { alert("環境設定を選択してください"); return; } setActionLoading(true); try { const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { dbConfig: configForBackend, objectIDs: Array.from(selectedObjectIDs) }; const response = await fetch("http://localhost:8080/api/error-messages/fetch/by-ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), }); if (!response.ok) { throw new Error(`選択データの取得失敗 (HTTP ${response.status})`); } const selectedMessagesData: ErrorMessage[] = await response.json(); navigate("/error-messages-xml", { state: { messages: selectedMessagesData, languageMap: langMap } }); } catch (error: any) { console.error("選択データの取得または画面遷移エラー:", error); alert(error.message || "処理中にエラーが発生しました"); } finally { setActionLoading(false); } };
 
-    if (selectedMessages.length === 0) {
-        alert("変換するデータが選択されていません");
-        return;
-    }
+  // --- 選択関連ハンドラ ---
+  const handleToggleSelect = (objectID: string) => { setSelectedObjectIDs(prevSet => { const newSet = new Set(prevSet); if (newSet.has(objectID)) newSet.delete(objectID); else newSet.add(objectID); return newSet; }); };
+  const handleSelectPage = () => { const currentPageObjectIDs = messages.map(m => m.objectID); setSelectedObjectIDs(prevSet => { const newSet = new Set(prevSet); currentPageObjectIDs.forEach(id => newSet.add(id)); return newSet; }); };
+  const handleClearSelection = () => { setSelectedObjectIDs(new Set()); };
+  const handleSelectAllFiltered = async () => { if (!selectedConfig) { alert("環境設定を選択してください"); return; } setActionLoading(true); try { const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { ...configForBackend, filter: filter }; const response = await fetch("http://localhost:8080/api/error-messages/fetch/ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), }); if (!response.ok) { throw new Error(`全IDの取得失敗 (HTTP ${response.status})`); } const allIDs: string[] = await response.json(); setSelectedObjectIDs(new Set(allIDs)); } catch (error: any) { console.error("全ID取得エラー:", error); alert(error.message || "全件選択中にエラーが発生しました"); } finally { setActionLoading(false); } };
 
-    navigate("/error-messages-xml", { state: { messages: selectedMessages, languageMap: langMap } });
-  };
+  // --- フィルターハンドラ ---
+  const handleFilterFocus = (event: React.FocusEvent<HTMLInputElement>) => { setFocusedInputId(event.target.id); };
+  const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => { const { name, value } = event.target; setFilter(prev => ({ ...prev, [name]: value })); };
 
-  // 行選択のトグル
-  const handleToggleSelect = (objectID: string) => {
-    setSelectedObjectIDs(prevSet => {
-      const newSet = new Set(prevSet);
-      if (newSet.has(objectID)) {
-        newSet.delete(objectID);
-      } else {
-        newSet.add(objectID);
-      }
-      return newSet;
-    });
-  };
-
-  // 全件選択/解除
-  const handleSelectAll = () => {
-    if (isAllSelected) {
-      setSelectedObjectIDs(new Set());
-    } else {
-      const allObjectIDs = new Set(messages.map(m => m.objectID));
-      setSelectedObjectIDs(allObjectIDs);
-    }
-  };
-
-  // 現在表示されているデータが全て選択されているか
-  const isAllSelected = messages.length > 0 && selectedObjectIDs.size === messages.length;
-
-  // フィルター入力フィールドの onFocus と ref, id, name を設定
-  const handleFilterFocus = (event: React.FocusEvent<HTMLInputElement>) => {
-    setFocusedInputId(event.target.id);
-  };
-
-  const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = event.target;
-    setFilter(prev => ({ ...prev, [name]: value }));
-  };
+  // --- ページネーションハンドラ ---
+  const handleChangePage = (_event: unknown, newPage: number) => { setPage(newPage); };
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(0); };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 , width:1500}}>
+    <Container maxWidth="lg" sx={{ mt: 4, width: 1500 }}>
       <Typography variant="h5" component="h2" gutterBottom>
-            エラーメッセージリソース変換
-          </Typography>
+        エラーメッセージリソース変換
+      </Typography>
       <Paper elevation={3} sx={{ p: 3, overflowX: 'auto' }}>
-
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            mb: 2,
-          }}
-        >
-          <Button
-            size="large"
-            variant="contained"
-            onClick={handleNavigateToConvert}
-            disabled={selectedObjectIDs.size === 0 || loading} // ローディング中も無効化
-          >
-            変換
-          </Button>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 2 }}>
+          <Tooltip title="チェックボックスで選択したすべての項目（複数ページにまたがる場合も含む）を変換画面に送ります">
+            <span>
+              <Button
+                size="large"
+                variant="contained"
+                onClick={handleNavigateToConvert}
+                disabled={selectedObjectIDs.size === 0 || loading || actionLoading}
+              >
+                選択した{selectedObjectIDs.size}件を変換
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          {/* 環境設定 Select */}
           <FormControl sx={{ minWidth: 240, mr: 2 }} size="small">
             <InputLabel id="db-config-select-label">環境設定</InputLabel>
             <Select
@@ -240,116 +119,87 @@ const ErrorMessageDisplay: React.FC = () => {
               label="環境設定"
               value={selectedConfigName}
               onChange={(e: SelectChangeEvent<string>) => setSelectedConfigName(e.target.value)}
-              disabled={loading}
+              disabled={loading || actionLoading}
             >
-              <MenuItem value="">
-                <em>-- 選択してください --</em>
-              </MenuItem>
-              {dbConfigs.map(config => (
-                <MenuItem key={config.name} value={config.name}>
-                  {config.name}
-                </MenuItem>
-              ))}
+              <MenuItem value=""><em>-- 選択してください --</em></MenuItem>
+              {dbConfigs.map(config => (<MenuItem key={config.name} value={config.name}>{config.name}</MenuItem>))}
             </Select>
           </FormControl>
-          {/* ローディングインジケーター */}
-          {loading && <CircularProgress size={24} sx={{ ml: 2 }} />}
+          {(loading || actionLoading) && <CircularProgress size={24} sx={{ ml: 2 }} />}
         </Box>
 
-        {/* 検索フィルターUI */}
         <Paper elevation={1} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2 }}>
           <SearchIcon color="action" sx={{ mr: 1 }} />
-          <TextField
-            id="filter-error-objectID"
-            name="objectID"
-            inputRef={objectIdInputRef}
-            label="ObjectID (部分一致)"
-            variant="outlined"
-            size="small"
-            fullWidth
-            value={filter.objectID}
-            onChange={handleFilterChange}
-            onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName}
-          />
-          <TextField
-            id="filter-errorNo"
-            name="errorNo"
-            inputRef={errorNoInputRef}
-            label="ErrorNo (部分一致)"
-            variant="outlined"
-            size="small"
-            fullWidth
-            value={filter.errorNo}
-            onChange={handleFilterChange}
-            onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName}
-          />
-          <TextField
-            id="filter-errorType"
-            name="errorType"
-            inputRef={errorTypeInputRef}
-            label="ErrorType (部分一致)"
-            variant="outlined"
-            size="small"
-            fullWidth
-            value={filter.errorType}
-            onChange={handleFilterChange}
-            onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName}
-          />
-          <TextField
-            id="filter-errorMessage"
-            name="message"
-            inputRef={messageInputRef}
-            label="メッセージ (部分一致)"
-            variant="outlined"
-            size="small"
-            fullWidth
-            value={filter.message}
-            onChange={handleFilterChange}
-            onFocus={handleFilterFocus}
-            disabled={loading || !selectedConfigName}
-          />
+          <TextField id="filter-error-objectID" name="objectID" inputRef={objectIdInputRef} label="ObjectID (部分一致)" variant="outlined" size="small" fullWidth value={filter.objectID} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField id="filter-errorNo" name="errorNo" inputRef={errorNoInputRef} label="ErrorNo (部分一致)" variant="outlined" size="small" fullWidth value={filter.errorNo} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField id="filter-errorType" name="errorType" inputRef={errorTypeInputRef} label="ErrorType (部分一致)" variant="outlined" size="small" fullWidth value={filter.errorType} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField id="filter-errorMessage" name="message" inputRef={messageInputRef} label="メッセージ (部分一致)" variant="outlined" size="small" fullWidth value={filter.message} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
         </Paper>
 
-        {/* 選択件数表示と全件選択ボタン */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1, minHeight: '30px' }}>
-         {selectedConfigName && messages.length > 0 && ( // DB選択済み かつ データがある場合のみ表示
-            <Typography variant="body2" color="text.secondary" sx={{ mr: 3 }}>
-              <strong>{selectedObjectIDs.size} / {messages.length}</strong> 件選択中
-            </Typography>
-          )}
-          <Button
-            onClick={handleSelectAll}
-            size="medium"
-            variant="outlined"
-            disabled={messages.length === 0 || loading} // データがない or ローディング中は無効
-          >
-            {isAllSelected ? '全件解除' : '全件選択'}
-          </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, minHeight: '52px' }}>
+          <Box>
+            {totalCount > 0 && !loading && (
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50, 100]}
+                component="div"
+                count={totalCount}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                labelRowsPerPage="表示件数:"
+              />
+            )}
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {selectedConfigName && (
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: '100px', textAlign: 'right', mr: 1 }}>
+                合計 <strong>{selectedObjectIDs.size}</strong> 件選択中
+              </Typography>
+            )}
+            <Button
+              variant="outlined"
+              onClick={handleSelectPage}
+              disabled={messages.length === 0 || loading || actionLoading || !selectedConfigName}
+            >
+              このページを選択
+            </Button>
+            <Tooltip title="現在のフィルター条件に一致するすべての項目を選択します">
+              <span>
+                <Button
+                  variant="outlined"
+                  onClick={handleSelectAllFiltered}
+                  disabled={totalCount === 0 || loading || actionLoading || !selectedConfigName}
+                >
+                  全件選択
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title="すべての選択を解除します">
+              <span>
+                <Button
+                  onClick={handleClearSelection}
+                  disabled={selectedObjectIDs.size === 0 || loading || actionLoading || !selectedConfigName}
+                  color="error"
+                  variant="text"
+                  startIcon={<ClearIcon />}
+                  sx={{ minWidth: 'auto', padding: '6px 8px', ml: 1 }}
+                >
+                  選択クリア
+                </Button>
+              </span>
+            </Tooltip>
+          </Box>
         </Box>
 
-        {/* ローディング中の表示 */}
-        {loading && (
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: 'center',
-              p: 4,
-              minHeight: TABLE_AREA_MIN_HEIGHT_PX,
-              opacity: 0.5,
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        )}
+        {/* --- ローディング中の表示 --- */}
+        {(loading || actionLoading) && (<Box sx={{ display: "flex", justifyContent: "center", alignItems: 'center', p: 4, minHeight: TABLE_AREA_MIN_HEIGHT_PX, opacity: 0.5 }}> <CircularProgress /> </Box>)}
 
-        {/* テーブル描画エリア (ローディング中でない場合に表示) */}
-        {!loading && selectedConfigName && ( // DB設定が選択されている場合のみ表示
+        {/* --- テーブル描画エリア --- */}
+        {!loading && !actionLoading && selectedConfigName && (
           <>
-            {messages.length > 0 && (
+            {messages.length > 0 ? (
               <TableContainer sx={{ maxHeight: TABLE_AREA_MIN_HEIGHT_PX }}>
                 <Table stickyHeader>
                   <TableHead>
@@ -368,21 +218,8 @@ const ErrorMessageDisplay: React.FC = () => {
                   </TableHead>
                   <TableBody>
                     {messages.map((msg) => (
-                      <TableRow
-                        key={msg.objectID}
-                        hover
-                        role="checkbox"
-                        tabIndex={-1}
-                        selected={selectedObjectIDs.has(msg.objectID)}
-                        onClick={() => handleToggleSelect(msg.objectID)}
-                        sx={{ cursor: 'pointer' }}
-                      >
-                        <TableCell padding="checkbox">
-                          <Checkbox
-                            color="primary"
-                            checked={selectedObjectIDs.has(msg.objectID)}
-                          />
-                        </TableCell>
+                      <TableRow key={msg.objectID} hover role="checkbox" tabIndex={-1} selected={selectedObjectIDs.has(msg.objectID)} onClick={() => handleToggleSelect(msg.objectID)} sx={{ cursor: 'pointer' }}>
+                        <TableCell padding="checkbox"> <Checkbox color="primary" checked={selectedObjectIDs.has(msg.objectID)} /> </TableCell>
                         <TableCell>{msg.objectID}</TableCell>
                         <TableCell>{msg.errorNo}</TableCell>
                         <TableCell>{msg.errorType}</TableCell>
@@ -397,44 +234,12 @@ const ErrorMessageDisplay: React.FC = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
-            )}
-
-            {/* フィルター結果が0件の場合の表示 */}
-            {messages.length === 0 && (
-               <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: 'center',
-                  p: 4,
-                  minHeight: TABLE_AREA_MIN_HEIGHT_PX,
-                }}
-              >
-                <Typography sx={{ p: 4, textAlign: 'center' }}>
-                  検索条件に一致するデータがありません。
-                </Typography>
-              </Box>
-            )}
+            ) : (<Box sx={{ display: "flex", justifyContent: "center", alignItems: 'center', p: 4, minHeight: TABLE_AREA_MIN_HEIGHT_PX, }}> <Typography sx={{ p: 4, textAlign: 'center' }}> {totalCount > 0 ? "このページにはデータがありません。" : "検索条件に一致するデータがありません。"} </Typography> </Box>)}
           </>
         )}
 
-        {/* 環境設定が未選択の場合の表示 */}
-        {!loading && !selectedConfigName && (
-           <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: 'center',
-              p: 4,
-              minHeight: TABLE_AREA_MIN_HEIGHT_PX,
-            }}
-          >
-            <Typography sx={{ fontSize: "1.3rem", p: 4, textAlign: 'center', mb:20 }}>
-               環境設定を選択してください
-            </Typography>
-          </Box>
-        )}
-
+        {/* --- DB未選択表示 --- */}
+        {!loading && !actionLoading && !selectedConfigName && (<Box sx={{ display: "flex", justifyContent: "center", alignItems: 'center', p: 4, minHeight: TABLE_AREA_MIN_HEIGHT_PX, }}> <Typography sx={{ fontSize: "1.3rem", p: 4, textAlign: 'center', mb: 20 }}> 環境設定を選択してください </Typography> </Box>)}
       </Paper>
     </Container>
   );

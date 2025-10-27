@@ -1,21 +1,21 @@
 package com.example.backend.controller;
 
 import com.example.backend.entity.SLocalizationLabel;
-import com.example.backend.repository.SLocalizationLabelRepository;
-import com.example.backend.service.DBConnectionService;
+import com.example.backend.service.SLocalizationLabelService;
 import com.example.backend.dto.FetchRequestDto;
-import com.example.backend.dto.FilterDto;
+import com.example.backend.dto.PagedResponseDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.web.bind.annotation.*;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/labels")
@@ -23,138 +23,114 @@ import java.util.ArrayList;
 public class SLocalizationLabelController {
 
     @Autowired
-    private SLocalizationLabelRepository repository;
+    private SLocalizationLabelService service;
 
-    @Autowired
-    private DBConnectionService dbConnectionService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // ... (getAllLabels, fetchLabelsFromDynamicDB, getLabelById は変更なし) ...
-    @GetMapping
-    public List<SLocalizationLabel> getAllLabels() {
-        return repository.findAll();
-    }
-
+    /**
+     * 動的DBからページング取得
+     */
     @PostMapping("/fetch")
-    public List<SLocalizationLabel> fetchLabelsFromDynamicDB(@RequestBody FetchRequestDto request) { // ★ DTOで受け取る
+    public PagedResponseDto<SLocalizationLabel> fetchLabelsFromDynamicDB(@RequestBody FetchRequestDto request) {
         try {
-            String dbType = request.getDbType();
-            String host = request.getHost();
-            int port = request.getPort();
-            String dbName = request.getDbName();
-            String username = request.getUsername();
-            String password = request.getPassword();
-
-            JdbcTemplate dynamicJdbcTemplate = dbConnectionService.createJdbcTemplate(
-                    dbType, host, port, dbName, username, password
-            );
-
-            // ★ SQLとパラメータリストを動的に構築
-            StringBuilder sql = new StringBuilder(
-                "SELECT objectID, categoryName, country1, country2, country3, country4, country5 " +
-                "FROM SLocalizationLabel WHERE 1=1" // 常に true で始める
-            );
-            
-            List<Object> params = new ArrayList<>();
-            FilterDto filter = request.getFilter();
-
-            if (filter != null) {
-                if (filter.getObjectID() != null && !filter.getObjectID().isEmpty()) {
-                    sql.append(" AND objectID LIKE ?");
-                    params.add("%" + filter.getObjectID() + "%");
-                }
-                if (filter.getCategoryName() != null && !filter.getCategoryName().isEmpty()) {
-                    sql.append(" AND categoryName LIKE ?");
-                    params.add("%" + filter.getCategoryName() + "%");
-                }
-                if (filter.getMessage() != null && !filter.getMessage().isEmpty()) {
-                    sql.append(" AND (country1 LIKE ? OR country2 LIKE ? OR country3 LIKE ? OR country4 LIKE ? OR country5 LIKE ?)");
-                    String messageLike = "%" + filter.getMessage() + "%";
-                    for (int i = 0; i < 5; i++) {
-                        params.add(messageLike);
-                    }
-                }
-            }
-
-
-            RowMapper<SLocalizationLabel> rowMapper = (rs, rowNum) -> {
-                SLocalizationLabel label = new SLocalizationLabel();
-                label.setObjectID(rs.getString("objectID"));
-                label.setCategoryName(rs.getString("categoryName"));
-                label.setCountry1(rs.getString("country1"));
-                label.setCountry2(rs.getString("country2"));
-                label.setCountry3(rs.getString("country3"));
-                label.setCountry4(rs.getString("country4"));
-                label.setCountry5(rs.getString("country5"));
-                return label;
-            };
-
-            // ★ SQLとパラメータを渡してクエリ実行
-            return dynamicJdbcTemplate.query(sql.toString(), rowMapper, params.toArray());
-
+            return service.getAllLabelsFromDynamicDB(
+                    request.asDbConfigMap(), request.getFilter(), request.getPage(), request.getSize());
         } catch (Exception e) {
+            System.err.println("動的DBからのデータ取得に失敗しました: " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("動的DBからのデータ取得に失敗しました: " + e.getMessage(), e);
         }
     }
 
-    @GetMapping("/{id}")
-    public SLocalizationLabel getLabelById(@PathVariable String id) {
-        return repository.findById(id).orElse(null);
-    }
-
-    @PostMapping("/properties")
-    public String generateProperties(@RequestBody List<SLocalizationLabel> labels) {
-        StringBuilder sb = new StringBuilder();
-        for (SLocalizationLabel label : labels) {
-            String key = (label.getUserKey() != null && !label.getUserKey().isEmpty())
-                    ? label.getUserKey()
-                    : label.getObjectID();
-            String value = label.getCountry1();
-            sb.append(key).append("=").append(value != null ? value : "").append("\n");
+    /**
+     * フィルター条件に一致するすべての ObjectID を取得
+     */
+    @PostMapping("/fetch/ids")
+    public List<String> fetchAllLabelObjectIDs(@RequestBody FetchRequestDto request) {
+        try {
+            Map<String, Object> configMap = request.asDbConfigMap();
+            if (configMap.values().stream()
+                    .anyMatch(v -> v == null && !"password".equals(getKeyByValue(configMap, v)))) {
+                throw new IllegalArgumentException("dbConfig contains null values");
+            }
+            return service.getAllLabelObjectIDsFromDynamicDB(configMap, request.getFilter());
+        } catch (Exception e) {
+            System.err.println("Error fetching all label object IDs: " + e.getMessage());
+            e.printStackTrace();
+            return Collections.emptyList();
         }
-        return sb.toString();
     }
 
+    private static <K, V> K getKeyByValue(Map<K, V> map, V value) {
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (value == null ? entry.getValue() == null : value.equals(entry.getValue())) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    // ObjectID のリストに基づいて SLocalizationLabel を取得
+    @PostMapping("/fetch/by-ids")
+    public List<SLocalizationLabel> fetchLabelsByIds(@RequestBody Map<String, Object> requestData) {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dbConfigMap = (Map<String, Object>) requestData.get("dbConfig");
+            @SuppressWarnings("unchecked")
+            List<String> objectIDs = (List<String>) requestData.get("objectIDs");
+
+            if (dbConfigMap == null || objectIDs == null) {
+                throw new IllegalArgumentException("dbConfig or objectIDs missing in request body");
+            }
+            if (dbConfigMap.values().stream()
+                    .anyMatch(v -> v == null && !"password".equals(getKeyByValue(dbConfigMap, v)))) {
+                throw new IllegalArgumentException("dbConfig contains null values");
+            }
+
+            return service.getLabelsByIdsFromDynamicDB(dbConfigMap, objectIDs);
+        } catch (Exception e) {
+            System.err.println("Error fetching labels by IDs: " + e.getMessage());
+            e.printStackTrace(); // スタックトレース出力
+            return Collections.emptyList();
+        }
+    }
+
+    // フロントから送られた選択データからのProperties生成・ダウンロード\
     @PostMapping("/properties/download")
     public ResponseEntity<String> downloadPropertiesFile(@RequestBody Map<String, Object> requestData) {
         try {
-            @SuppressWarnings("unchecked") 
-            List<Map<String, String>> labelsData = (List<Map<String, String>>) requestData.get("labels");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> labelsData = (List<Map<String, Object>>) requestData.get("labels");
             String langKey = (String) requestData.getOrDefault("lang", "country1");
-
+            String filename = "output.properties";
             if (labelsData == null) {
                 return ResponseEntity.badRequest().body("labels data is missing");
             }
-
-            StringBuilder sb = new StringBuilder();
-            for (Map<String, String> labelMap : labelsData) {
-                String key = labelMap.get("messageId");
-                if (key == null || key.trim().isEmpty()) {
-                    key = labelMap.get("objectID");
-                }
-                
-                String value = labelMap.getOrDefault(langKey, ""); 
-                
-                if (key != null && !key.trim().isEmpty()) {
-                     sb.append(key).append("=").append(value).append("\n");
-                }
-            }
-
-            String filename = "output.properties";
-            HttpHeaders headers = new HttpHeaders();
-            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename);
-            headers.setContentType(MediaType.valueOf("text/plain;charset=UTF-8"));
-
-
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(sb.toString());
-
-        } catch (ClassCastException e) {
-             return ResponseEntity.badRequest().body("Invalid request body format: " + e.getMessage());
+            List<SLocalizationLabel> labelDtos = objectMapper.convertValue(labelsData,
+                    new TypeReference<List<SLocalizationLabel>>() {
+                    });
+            String propertiesContent = service.convertToProperties(labelDtos, langKey);
+            return createPropertiesResponse(propertiesContent, filename);
         } catch (Exception e) {
-             System.err.println("Error generating properties file: " + e.getMessage());
-             e.printStackTrace();
+            System.err.println("Error generating properties file from selected data: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Error generating properties file");
         }
+    }
+
+    // Propertiesレスポンス生成の共通処理
+    private ResponseEntity<String> createPropertiesResponse(String propertiesBody, String filename) {
+        HttpHeaders headers = new HttpHeaders();
+        String encodedFilename = filename;
+        try {
+            encodedFilename = java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8.toString())
+                    .replace("+", "%20");
+        } catch (java.io.UnsupportedEncodingException e) {
+            System.err.println("Filename encoding failed: " + e.getMessage());
+        }
+        headers.add(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"" + filename + "\"; filename*=UTF-8''" + encodedFilename);
+        headers.setContentType(MediaType.valueOf("text/plain;charset=UTF-8"));
+        return ResponseEntity.ok().headers(headers).body(propertiesBody);
     }
 }
