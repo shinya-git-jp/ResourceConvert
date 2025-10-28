@@ -26,6 +26,8 @@ import {
   TextField,
   TablePagination,
   Tooltip,
+  InputAdornment,
+  IconButton,
   type SelectChangeEvent,
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
@@ -388,6 +390,17 @@ function MessageResourceDisplay() {
     setFilter(prev => ({ ...prev, [name]: value }));
   };
 
+  //フィルタークリアボタンのハンドラ
+  const handleClearFilterField = (fieldName: keyof FilterState) => {
+    setFilter(prev => ({ ...prev, [fieldName]: '' }));
+    // 対応する input 要素にフォーカスを戻す
+    switch (fieldName) {
+      case 'objectID': objectIdInputRef.current?.focus(); break;
+      case 'categoryName': categoryInputRef.current?.focus(); break;
+      case 'message': messageInputRef.current?.focus(); break;
+    }
+  };
+
   // ページネーションハンドラ (ページ変更)
   const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
@@ -471,6 +484,20 @@ function MessageResourceDisplay() {
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
             disabled={loading || actionLoading || !selectedConfigName}
+            InputProps={{
+              endAdornment: filter.objectID ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear objectID filter"
+                    onClick={() => handleClearFilterField('objectID')}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
           />
           <TextField
             id="filter-categoryName"
@@ -484,6 +511,20 @@ function MessageResourceDisplay() {
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
             disabled={loading || actionLoading || !selectedConfigName}
+            InputProps={{
+              endAdornment: filter.categoryName ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear categoryName filter"
+                    onClick={() => handleClearFilterField('categoryName')}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
           />
           <TextField
             id="filter-message"
@@ -497,6 +538,20 @@ function MessageResourceDisplay() {
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
             disabled={loading || actionLoading || !selectedConfigName}
+            InputProps={{
+              endAdornment: filter.message ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear message filter"
+                    onClick={() => handleClearFilterField('message')}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
           />
         </Paper>
 

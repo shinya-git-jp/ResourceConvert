@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom"; // useLocation をインポート
+import { useLocation, useNavigate } from "react-router-dom";
 import type { ErrorMessage } from "../types/ErrorMessage";
 import type { DbConfig } from "../types/DbConfig";
 import useDebounce from "../hooks/useDebounce";
@@ -26,6 +26,8 @@ import {
   TextField,
   TablePagination,
   Tooltip,
+  InputAdornment,
+  IconButton,
   type SelectChangeEvent,
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
@@ -57,7 +59,6 @@ const TABLE_AREA_MIN_HEIGHT_PX = 600;
 
 const ErrorMessageDisplay: React.FC = () => {
   // --- States ---
-  // Context ではなくローカル state を使用
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
   const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
 
@@ -100,7 +101,6 @@ const ErrorMessageDisplay: React.FC = () => {
     //    setFocusedInputId(null);
     // }
     setLoading(true);
-    // リセット処理は useEffect に移動
 
     const { name, languageMap, ...configForBackend } = selectedConfig;
     const requestBody = { ...configForBackend, filter: currentFilter, page: currentPage, size: currentSize };
@@ -119,7 +119,6 @@ const ErrorMessageDisplay: React.FC = () => {
       alert(err.message || "エラーメッセージ取得失敗");
       setMessages([]);
       setTotalCount(0);
-      // エラー時のリセットも selectedConfigName の useEffect で行う
     } finally {
       setLoading(false);
     }
@@ -206,12 +205,9 @@ const ErrorMessageDisplay: React.FC = () => {
         // console.log("Attempting to restore focus to:", focusedInputId);
         setTimeout(() => {
           inputToFocus?.focus();
-          // フォーカスを試みた後はクリアする
-          // setFocusedInputId(null);
         }, 0);
       } else {
         // console.log("Input element not found for:", focusedInputId);
-        // setFocusedInputId(null); // 要素が見つからない場合もクリアした方が良いかも
       }
     }
   }, [loading, focusedInputId, isRestored]);
@@ -273,6 +269,18 @@ const ErrorMessageDisplay: React.FC = () => {
   const handleFilterFocus = (event: React.FocusEvent<HTMLInputElement>) => { setFocusedInputId(event.target.id); };
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => { const { name, value } = event.target; setFilter(prev => ({ ...prev, [name]: value })); };
 
+  // フィルタークリアボタンのハンドラ
+  const handleClearFilterField = (fieldName: keyof FilterState) => {
+    setFilter(prev => ({ ...prev, [fieldName]: '' }));
+    // 対応する input 要素にフォーカスを戻す
+    switch (fieldName) {
+      case 'objectID': objectIdInputRef.current?.focus(); break;
+      case 'errorNo': errorNoInputRef.current?.focus(); break;
+      case 'errorType': errorTypeInputRef.current?.focus(); break;
+      case 'message': messageInputRef.current?.focus(); break;
+    }
+  };
+
   // ページネーションハンドラ
   const handleChangePage = (_event: unknown, newPage: number) => { setPage(newPage); };
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(0); };
@@ -317,10 +325,90 @@ const ErrorMessageDisplay: React.FC = () => {
 
         <Paper elevation={1} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2 }}>
           <SearchIcon color="action" sx={{ mr: 1 }} />
-          <TextField id="filter-error-objectID" name="objectID" inputRef={objectIdInputRef} label="ObjectID" variant="outlined" size="small" fullWidth value={filter.objectID} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
-          <TextField id="filter-errorNo" name="errorNo" inputRef={errorNoInputRef} label="ErrorNo" variant="outlined" size="small" fullWidth value={filter.errorNo} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
-          <TextField id="filter-errorType" name="errorType" inputRef={errorTypeInputRef} label="ErrorType" variant="outlined" size="small" fullWidth value={filter.errorType} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
-          <TextField id="filter-errorMessage" name="message" inputRef={messageInputRef} label="エラーメッセージ" variant="outlined" size="small" fullWidth value={filter.message} onChange={handleFilterChange} onFocus={handleFilterFocus} disabled={loading || actionLoading || !selectedConfigName} />
+          <TextField
+            id="filter-error-objectID"
+            name="objectID" inputRef={objectIdInputRef}
+            label="ObjectID" variant="outlined" size="small"
+            sx={{ flexGrow: 1, minWidth: '150px' }}
+            value={filter.objectID} onChange={handleFilterChange} onFocus={handleFilterFocus}
+            disabled={loading || actionLoading || !selectedConfigName}
+            InputProps={{
+              endAdornment: filter.objectID ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear objectID filter"
+                    onClick={() => handleClearFilterField('objectID')}
+                    edge="end" size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          <TextField
+            id="filter-errorNo"
+            name="errorNo" inputRef={errorNoInputRef}
+            label="ErrorNo" variant="outlined" size="small"
+            sx={{ flexGrow: 1, minWidth: '120px' }}
+            value={filter.errorNo} onChange={handleFilterChange} onFocus={handleFilterFocus}
+            disabled={loading || actionLoading || !selectedConfigName}
+            InputProps={{
+              endAdornment: filter.errorNo ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear errorNo filter"
+                    onClick={() => handleClearFilterField('errorNo')}
+                    edge="end" size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          <TextField
+            id="filter-errorType"
+            name="errorType" inputRef={errorTypeInputRef}
+            label="ErrorType" variant="outlined" size="small"
+            sx={{ flexGrow: 1, minWidth: '100px' }}
+            value={filter.errorType} onChange={handleFilterChange} onFocus={handleFilterFocus}
+            disabled={loading || actionLoading || !selectedConfigName}
+            InputProps={{
+              endAdornment: filter.errorType ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear errorType filter"
+                    onClick={() => handleClearFilterField('errorType')}
+                    edge="end" size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          <TextField
+            id="filter-errorMessage"
+            name="message" inputRef={messageInputRef}
+            label="エラーメッセージ" variant="outlined" size="small"
+            sx={{ flexGrow: 2, minWidth: '200px' }}
+            value={filter.message} onChange={handleFilterChange} onFocus={handleFilterFocus}
+            disabled={loading || actionLoading || !selectedConfigName}
+            InputProps={{
+              endAdornment: filter.message ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear message filter"
+                    onClick={() => handleClearFilterField('message')}
+                    edge="end" size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
         </Paper>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, minHeight: '52px' }}>
