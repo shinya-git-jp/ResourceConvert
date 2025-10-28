@@ -57,6 +57,7 @@ const TABLE_AREA_MIN_HEIGHT_PX = 600;
 function MessageResourceDisplay() {
   // --- States ---
   const [labels, setLabels] = useState<EditableLabel[]>([]); // Data for the current page
+  const [messageIdMap, setMessageIdMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false); // Loading state for fetching data
   const [actionLoading, setActionLoading] = useState(false); // Loading state for button actions (select all, navigate)
   const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
@@ -87,19 +88,21 @@ function MessageResourceDisplay() {
     currentFilter: typeof filter,
     currentPage: number,
     currentSize: number,
-    shouldResetSelection: boolean = false // Flag to reset selection (on config/filter change)
+    shouldResetSelectionAndInputs: boolean = false
   ) => {
     const selectedConfig = dbConfigs.find(c => c.name === configName);
     if (!selectedConfig) {
       setLabels([]);
       setTotalCount(0);
       setSelectedObjectIDs(new Set());
+      setMessageIdMap({});
       return;
     }
 
     setLoading(true);
-    if (shouldResetSelection) {
+    if (shouldResetSelectionAndInputs) {
       setSelectedObjectIDs(new Set());
+      setMessageIdMap({});
     }
 
     const { name, languageMap, ...configForBackend } = selectedConfig;
@@ -122,19 +125,26 @@ function MessageResourceDisplay() {
       }
 
       const data: PagedResponse<SLocalizationLabel> = await response.json();
-      // ★ fetchDataでは、ユーザー入力値を保持せず、常にAPIからの値で初期化する
-      // (ユーザー入力値は labels state 内で onChange によって更新される)
-      const initialEditableData = data.content.map(d => ({ ...d, messageId: "" }));
-      setLabels(initialEditableData);
-      setTotalCount(data.totalElements);
+
+      setMessageIdMap(prevMap => {
+        const dataWithUserInputs = data.content.map(d => ({
+          ...d,
+          messageId: prevMap[d.objectID] || ""
+        }));
+        setLabels(dataWithUserInputs);
+        setTotalCount(data.totalElements);
+        return prevMap;
+      });
+
 
     } catch (error: any) {
       console.error("Failed to fetch labels:", error);
       alert(error.message || "データ取得に失敗しました");
       setLabels([]);
       setTotalCount(0);
-      if (shouldResetSelection) {
+      if (shouldResetSelectionAndInputs) {
         setSelectedObjectIDs(new Set());
+        setMessageIdMap({});
       }
     } finally {
       setLoading(false);
@@ -155,33 +165,30 @@ function MessageResourceDisplay() {
     }
   }, []);
 
-  // Fetch data when selected DB config changes (reset page and selection)
+
   useEffect(() => {
-    if (selectedConfigName) {
-      setPage(0);
-      fetchData(selectedConfigName, filter, 0, rowsPerPage, true);
-    } else {
+    if (!selectedConfigName) {
       setLabels([]);
       setTotalCount(0);
       setSelectedObjectIDs(new Set());
+      setMessageIdMap({});
+      return;
     }
+    setPage(0);
+    fetchData(selectedConfigName, filter, 0, rowsPerPage, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConfigName, fetchData]);
+  }, [selectedConfigName]);
 
-  // Fetch data when debounced filter changes (reset page and selection)
   useEffect(() => {
-    if (selectedConfigName) {
-      setPage(0);
-      fetchData(selectedConfigName, debouncedFilter, 0, rowsPerPage, true);
-    }
+    if (!selectedConfigName) return;
+    setPage(0);
+    fetchData(selectedConfigName, debouncedFilter, 0, rowsPerPage, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedFilter, selectedConfigName, fetchData]);
+  }, [debouncedFilter]);
 
-  // Fetch data when page or rowsPerPage changes (keep selection)
   useEffect(() => {
-    if (selectedConfigName) {
-      fetchData(selectedConfigName, filter, page, rowsPerPage, false);
-    }
+    if (!selectedConfigName) return;
+    fetchData(selectedConfigName, filter, page, rowsPerPage, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage]);
 
@@ -237,20 +244,13 @@ function MessageResourceDisplay() {
         try { const errorData = await response.text(); if (errorData) errorText += `: ${errorData}`; } catch (_) { }
         throw new Error(errorText);
       }
-      // データはバックエンドから取得 (これが最新のDBの状態)
+
       const selectedLabelsData: SLocalizationLabel[] = await response.json();
 
-      //バックエンドデータとフロントの入力値をマージ
       const updatedLabels = selectedLabelsData.map(backendLabel => {
-        // 現在表示されているページ(labels state)から同じIDのものを探す
-        const frontendLabel = labels.find(l => l.objectID === backendLabel.objectID);
-        // 見つかったらその messageId を使う、見つからなければ (別ページで選択されたなど)
-        // placeholder として objectID を使うか、空文字にする
-        const messageIdValue = frontendLabel?.messageId // Use entered value if found on current page
-          ?? ""; // Default to empty string if not found (or objectID if preferred)
-
+        const messageIdValue = messageIdMap[backendLabel.objectID] || "";
         return {
-          ...backendLabel, // バックエンドからのデータをベースにする
+          ...backendLabel,
           messageId: messageIdValue,
         };
       });
@@ -290,6 +290,7 @@ function MessageResourceDisplay() {
 
   const handleClearSelection = () => {
     setSelectedObjectIDs(new Set());
+    // setMessageIdMap({});
   };
 
   const handleSelectAllFiltered = async () => {
@@ -352,6 +353,7 @@ function MessageResourceDisplay() {
     const defaultName = key.charAt(0).toUpperCase() + key.slice(1);
     return (mappedName && mappedName.trim() !== '') ? `${mappedName} (${defaultName})` : defaultName;
   }
+
 
   // --- Render ---
   return (
@@ -560,16 +562,22 @@ function MessageResourceDisplay() {
                           <TextField
                             variant="standard"
                             size="small"
-                            value={label.messageId ?? ""} // ★ ローカルstateの値を使用
+                            value={label.messageId ?? ""}
                             placeholder={label.objectID}
                             onChange={(e) => {
-                              // ★ onChangeでローカルの labels state を更新
-                              const newLabels = labels.map((l) =>
-                                l.objectID === label.objectID
-                                  ? { ...l, messageId: e.target.value }
-                                  : l
+                              const newValue = e.target.value;
+                              const objectID = label.objectID;
+
+                              setLabels(currentLabels =>
+                                currentLabels.map(l =>
+                                  l.objectID === objectID ? { ...l, messageId: newValue } : l
+                                )
                               );
-                              setLabels(newLabels);
+
+                              setMessageIdMap(currentMap => ({
+                                ...currentMap,
+                                [objectID]: newValue,
+                              }));
                             }}
                             sx={{ minWidth: 150 }}
                           />

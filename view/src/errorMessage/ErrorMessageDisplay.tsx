@@ -46,7 +46,7 @@ const ErrorMessageDisplay: React.FC = () => {
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
 
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
 
   const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
@@ -60,33 +60,115 @@ const ErrorMessageDisplay: React.FC = () => {
   const errorTypeInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
 
-  // データ取得ロジック
-  const fetchData = useCallback(async (configName: string, currentFilter: typeof filter, currentPage: number, currentSize: number, shouldResetSelection: boolean = false) => { const selectedConfig = dbConfigs.find(c => c.name === configName); if (!selectedConfig) { setMessages([]); setTotalCount(0); setSelectedObjectIDs(new Set()); return; } setLoading(true); if (shouldResetSelection) { setSelectedObjectIDs(new Set()); } const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { ...configForBackend, filter: currentFilter, page: currentPage, size: currentSize }; try { const response = await fetch("http://localhost:8080/api/error-messages/fetch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) }); if (!response.ok) throw new Error(`データ取得失敗 (HTTP ${response.status})`); const data: PagedResponse<ErrorMessage> = await response.json(); setMessages(data.content); setTotalCount(data.totalElements); } catch (err: any) { console.error("エラーメッセージ取得失敗:", err); alert(err.message || "エラーメッセージ取得失敗"); setMessages([]); setTotalCount(0); if (shouldResetSelection) setSelectedObjectIDs(new Set()); } finally { setLoading(false); } }, [dbConfigs]);
+  // データ取得ロジック (useCallback の依存配列は dbConfigs のみ)
+  const fetchData = useCallback(async (
+    configName: string,
+    currentFilter: typeof filter,
+    currentPage: number,
+    currentSize: number,
+    shouldResetSelection: boolean = false
+  ) => {
+    const selectedConfig = dbConfigs.find(c => c.name === configName);
+    if (!selectedConfig) {
+      setMessages([]);
+      setTotalCount(0);
+      setSelectedObjectIDs(new Set()); // ★ 設定がない場合もクリア
+      return;
+    }
+    setLoading(true);
+    if (shouldResetSelection) {
+      setSelectedObjectIDs(new Set());
+    }
+    const { name, languageMap, ...configForBackend } = selectedConfig;
+    const requestBody = { ...configForBackend, filter: currentFilter, page: currentPage, size: currentSize };
+    try {
+      const response = await fetch("http://localhost:8080/api/error-messages/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) throw new Error(`データ取得失敗 (HTTP ${response.status})`);
+      const data: PagedResponse<ErrorMessage> = await response.json();
+      setMessages(data.content);
+      setTotalCount(data.totalElements);
+    } catch (err: any) {
+      console.error("エラーメッセージ取得失敗:", err);
+      alert(err.message || "エラーメッセージ取得失敗");
+      setMessages([]);
+      setTotalCount(0);
+      if (shouldResetSelection) setSelectedObjectIDs(new Set()); // ★ エラー時もリセット
+    } finally {
+      setLoading(false);
+    }
+  }, [dbConfigs]); // ★ 依存配列は dbConfigs のみ
 
-  // useEffect フック
-  useEffect(() => { const saved = localStorage.getItem(LOCAL_STORAGE_KEY); if (saved) { const configs: DbConfig[] = JSON.parse(saved); setDbConfigs(configs); } }, []);
-  useEffect(() => { if (selectedConfigName) { setPage(0); fetchData(selectedConfigName, filter, 0, rowsPerPage, true); } else { setMessages([]); setTotalCount(0); setSelectedObjectIDs(new Set()); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedConfigName, fetchData]);
-  useEffect(() => { if (selectedConfigName) { setPage(0); fetchData(selectedConfigName, debouncedFilter, 0, rowsPerPage, true); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [debouncedFilter, selectedConfigName, fetchData]);
-  useEffect(() => { if (selectedConfigName) { fetchData(selectedConfigName, filter, page, rowsPerPage, false); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page, rowsPerPage]);
+  // --- useEffect フック ---
+
+  // ローカルストレージからDB設定を読み込み
+  useEffect(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      try { // ★ try-catch を追加
+        const configs: DbConfig[] = JSON.parse(saved);
+        setDbConfigs(configs);
+      } catch (e) {
+        console.error("Failed to parse DB configs from localStorage", e);
+      }
+    }
+  }, []);
+
+  // DB設定変更時にデータを取得 (選択状態をリセット)
+  useEffect(() => {
+    if (!selectedConfigName) {
+      setMessages([]);
+      setTotalCount(0);
+      setSelectedObjectIDs(new Set());
+      return;
+    }
+    setPage(0); // DB設定変更時は0ページ目に戻す
+    fetchData(selectedConfigName, filter, 0, rowsPerPage, true); // ★ リセット true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConfigName]); // ★ 依存配列は selectedConfigName のみ
+
+  // フィルター変更時にデータを取得 (選択状態を保持)
+  useEffect(() => {
+    if (!selectedConfigName) return; // DB設定がない場合は何もしない
+    setPage(0); // フィルター変更時は0ページ目に戻す
+    // ★ 修正点: フィルター変更時は選択状態をリセットしない (false)
+    fetchData(selectedConfigName, debouncedFilter, 0, rowsPerPage, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFilter]); // ★ 依存配列は debouncedFilter のみ
+
+  // ページネーション変更時にデータを取得 (選択状態を保持)
+  useEffect(() => {
+    if (!selectedConfigName) return; // DB設定がない場合は何もしない
+    fetchData(selectedConfigName, filter, page, rowsPerPage, false); // ★ リセット false
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, rowsPerPage]); // ★ 依存配列は page, rowsPerPage のみ
+
+  // フォーカス復元ロジック (変更なし)
   useEffect(() => { if (!loading && focusedInputId) { let inputToFocus: HTMLInputElement | null = null; switch (focusedInputId) { case 'filter-error-objectID': inputToFocus = objectIdInputRef.current; break; case 'filter-errorNo': inputToFocus = errorNoInputRef.current; break; case 'filter-errorType': inputToFocus = errorTypeInputRef.current; break; case 'filter-errorMessage': inputToFocus = messageInputRef.current; break; } if (inputToFocus) setTimeout(() => inputToFocus?.focus(), 0); } }, [loading, focusedInputId]);
 
+  // --- Derived State ---
   const selectedConfig = dbConfigs.find(c => c.name === selectedConfigName);
   const langMap = selectedConfig?.languageMap;
 
-  // メインの変換ボタンハンドラ
+  // --- Handlers ---
+
+  // メインの変換ボタンハンドラ (変更なし)
   const handleNavigateToConvert = async () => { if (selectedObjectIDs.size === 0) { alert("変換するデータが選択されていません"); return; } if (!selectedConfig) { alert("環境設定を選択してください"); return; } setActionLoading(true); try { const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { dbConfig: configForBackend, objectIDs: Array.from(selectedObjectIDs) }; const response = await fetch("http://localhost:8080/api/error-messages/fetch/by-ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), }); if (!response.ok) { throw new Error(`選択データの取得失敗 (HTTP ${response.status})`); } const selectedMessagesData: ErrorMessage[] = await response.json(); navigate("/error-messages-xml", { state: { messages: selectedMessagesData, languageMap: langMap } }); } catch (error: any) { console.error("選択データの取得または画面遷移エラー:", error); alert(error.message || "処理中にエラーが発生しました"); } finally { setActionLoading(false); } };
 
-  // --- 選択関連ハンドラ ---
+  // 選択関連ハンドラ (変更なし)
   const handleToggleSelect = (objectID: string) => { setSelectedObjectIDs(prevSet => { const newSet = new Set(prevSet); if (newSet.has(objectID)) newSet.delete(objectID); else newSet.add(objectID); return newSet; }); };
   const handleSelectPage = () => { const currentPageObjectIDs = messages.map(m => m.objectID); setSelectedObjectIDs(prevSet => { const newSet = new Set(prevSet); currentPageObjectIDs.forEach(id => newSet.add(id)); return newSet; }); };
   const handleClearSelection = () => { setSelectedObjectIDs(new Set()); };
   const handleSelectAllFiltered = async () => { if (!selectedConfig) { alert("環境設定を選択してください"); return; } setActionLoading(true); try { const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { ...configForBackend, filter: filter }; const response = await fetch("http://localhost:8080/api/error-messages/fetch/ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), }); if (!response.ok) { throw new Error(`全IDの取得失敗 (HTTP ${response.status})`); } const allIDs: string[] = await response.json(); setSelectedObjectIDs(new Set(allIDs)); } catch (error: any) { console.error("全ID取得エラー:", error); alert(error.message || "全件選択中にエラーが発生しました"); } finally { setActionLoading(false); } };
 
-  // --- フィルターハンドラ ---
+  // フィルターハンドラ (変更なし)
   const handleFilterFocus = (event: React.FocusEvent<HTMLInputElement>) => { setFocusedInputId(event.target.id); };
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => { const { name, value } = event.target; setFilter(prev => ({ ...prev, [name]: value })); };
 
-  // --- ページネーションハンドラ ---
+  // ページネーションハンドラ (変更なし)
   const handleChangePage = (_event: unknown, newPage: number) => { setPage(newPage); };
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(0); };
 
