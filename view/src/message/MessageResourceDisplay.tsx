@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "../App.css"; // 必要であればスタイルを適用
 import type { DbConfig, LanguageMap } from "../types/DbConfig";
 import useDebounce from "../hooks/useDebounce";
@@ -45,33 +45,52 @@ interface SLocalizationLabel {
   country4?: string;
   country5?: string;
 }
-interface EditableLabel extends SLocalizationLabel {
-  messageId?: string; // User-editable key for properties file
+// EditableLabel は不要
+
+// filter state の型を明示的に定義
+interface FilterState {
+  objectID: string;
+  categoryName: string;
+  message: string;
 }
+
+// 保存する状態の型
+interface DisplayStateToSave {
+  selectedConfigName: string;
+  page: number;
+  rowsPerPage: number;
+  filter: FilterState; // typeof filter の代わりに FilterState を使用
+  selectedObjectIDs: string[]; // Set は JSON にできないため Array で保存
+  messageIdMap: Record<string, string>;
+}
+
 
 // --- Constants ---
 const LOCAL_STORAGE_KEY = "dbConfigs";
+const SESSION_STORAGE_KEY = "messageDisplayState"; // sessionStorage 用のキー
 const TABLE_AREA_MIN_HEIGHT_PX = 600;
 
 // --- Component ---
 function MessageResourceDisplay() {
   // --- States ---
-  const [labels, setLabels] = useState<EditableLabel[]>([]); // Data for the current page
-  const [messageIdMap, setMessageIdMap] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false); // Loading state for fetching data
-  const [actionLoading, setActionLoading] = useState(false); // Loading state for button actions (select all, navigate)
-  const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
   const [selectedConfigName, setSelectedConfigName] = useState<string>("");
-  const [page, setPage] = useState(0); // Current page number (0-based)
-  const [rowsPerPage, setRowsPerPage] = useState(25); // Items per page
-  const [totalCount, setTotalCount] = useState(0); // Total items matching filter
-  const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>()); // Holds selected IDs across pages
-  const [filter, setFilter] = useState({
+  const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
+  const [messageIdMap, setMessageIdMap] = useState<Record<string, string>>({}); // メッセージIDの入力値を保持
+
+  const [labels, setLabels] = useState<SLocalizationLabel[]>([]); // API から取得したデータ
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [filter, setFilter] = useState<FilterState>({ // useState に FilterState 型を適用
     objectID: "",
     categoryName: "",
     message: ""
   });
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null); // To restore focus after re-render
+  const [isRestored, setIsRestored] = useState<boolean | null>(null); // 状態復元フラグ (初期値 null)
 
   // --- Refs ---
   const objectIdInputRef = useRef<HTMLInputElement>(null);
@@ -80,38 +99,27 @@ function MessageResourceDisplay() {
 
   // --- Hooks ---
   const navigate = useNavigate();
-  const debouncedFilter = useDebounce(filter, 500); // Debounce filter input
+  const location = useLocation();
+  const debouncedFilter = useDebounce(filter, 500);
 
   // --- Data Fetching Logic ---
   const fetchData = useCallback(async (
     configName: string,
-    currentFilter: typeof filter,
+    currentFilter: FilterState,
     currentPage: number,
-    currentSize: number,
-    shouldResetSelectionAndInputs: boolean = false
+    currentSize: number
   ) => {
     const selectedConfig = dbConfigs.find(c => c.name === configName);
-    if (!selectedConfig) {
-      setLabels([]);
-      setTotalCount(0);
-      setSelectedObjectIDs(new Set());
-      setMessageIdMap({});
-      return;
-    }
+    if (!selectedConfig) return;
 
+    // フェッチ開始時にフォーカスIDクリア (ただし、メッセージID入力欄編集中は維持する可能性も考慮)
+    // if (!focusedInputId?.startsWith('messageId-')) { // もしフィルター入力中にフェッチが走るなら
+    //    setFocusedInputId(null);
+    // }
     setLoading(true);
-    if (shouldResetSelectionAndInputs) {
-      setSelectedObjectIDs(new Set());
-      setMessageIdMap({});
-    }
 
     const { name, languageMap, ...configForBackend } = selectedConfig;
-    const requestBody = {
-      ...configForBackend,
-      filter: currentFilter,
-      page: currentPage,
-      size: currentSize
-    };
+    const requestBody = { ...configForBackend, filter: currentFilter, page: currentPage, size: currentSize };
 
     try {
       const response = await fetch("http://localhost:8080/api/labels/fetch", {
@@ -125,76 +133,93 @@ function MessageResourceDisplay() {
       }
 
       const data: PagedResponse<SLocalizationLabel> = await response.json();
-
-      setMessageIdMap(prevMap => {
-        const dataWithUserInputs = data.content.map(d => ({
-          ...d,
-          messageId: prevMap[d.objectID] || ""
-        }));
-        setLabels(dataWithUserInputs);
-        setTotalCount(data.totalElements);
-        return prevMap;
-      });
-
+      setLabels(data.content); // APIからのデータをそのままセット
+      setTotalCount(data.totalElements);
+      // messageIdMap はここでは更新しない (入力値は保持される)
 
     } catch (error: any) {
       console.error("Failed to fetch labels:", error);
       alert(error.message || "データ取得に失敗しました");
       setLabels([]);
       setTotalCount(0);
-      if (shouldResetSelectionAndInputs) {
-        setSelectedObjectIDs(new Set());
-        setMessageIdMap({});
-      }
     } finally {
       setLoading(false);
     }
+    // dbConfigs の変更時のみ関数を再生成
   }, [dbConfigs]);
 
   // --- Effects ---
-  // Load DB configurations from localStorage on component mount
+  // Mount/Location Change: Load DB Configs and Restore State
   useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
+    // DB設定読み込み
+    const savedConfigs = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (savedConfigs) { try { setDbConfigs(JSON.parse(savedConfigs)); } catch (e) { console.error(e); } }
+
+    // sessionStorage から状態を復元
+    const savedStateString = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    let restored = false;
+    if (savedStateString) {
       try {
-        const configs: DbConfig[] = JSON.parse(saved);
-        setDbConfigs(configs);
+        const savedState: DisplayStateToSave = JSON.parse(savedStateString);
+        setSelectedConfigName(savedState.selectedConfigName);
+        setPage(savedState.page);
+        setRowsPerPage(savedState.rowsPerPage);
+        setFilter(savedState.filter);
+        setSelectedObjectIDs(new Set(savedState.selectedObjectIDs));
+        setMessageIdMap(savedState.messageIdMap);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        console.log("State restored from sessionStorage:", savedState);
+        restored = true;
       } catch (e) {
-        console.error("Failed to parse DB configs from localStorage", e);
+        console.error("Failed to parse state from sessionStorage", e);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
       }
     }
-  }, []);
+    setIsRestored(restored); // 復元成否をマーク
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]); // ブラウザバックでもトリガー
 
+  // Fetch data when parameters change AFTER initial load/restore is determined
   useEffect(() => {
+    // 復元処理が終わっていない場合は何もしない
+    if (isRestored === null) return;
+
+    // 設定が選択されていない場合
     if (!selectedConfigName) {
       setLabels([]);
       setTotalCount(0);
-      setSelectedObjectIDs(new Set());
-      setMessageIdMap({});
+      // 復元されていない場合（通常の初期表示 or 設定クリア時）は選択と入力をクリア
+      if (!isRestored) {
+        setSelectedObjectIDs(new Set());
+        setMessageIdMap({});
+      }
       return;
     }
-    setPage(0);
-    fetchData(selectedConfigName, filter, 0, rowsPerPage, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConfigName]);
 
-  useEffect(() => {
-    if (!selectedConfigName) return;
-    setPage(0);
-    fetchData(selectedConfigName, debouncedFilter, 0, rowsPerPage, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedFilter]);
+    // 状態復元直後 or パラメータ変更時にデータ取得
+    // debouncedFilter を使ってフェッチする
+    fetchData(selectedConfigName, debouncedFilter, page, rowsPerPage);
 
-  useEffect(() => {
-    if (!selectedConfigName) return;
-    fetchData(selectedConfigName, filter, page, rowsPerPage, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage]);
+  }, [selectedConfigName, debouncedFilter, page, rowsPerPage, isRestored, fetchData]);
 
-  // Restore focus to the filter input after data loading finishes
+  // Debounced filter effect: reset page only
   useEffect(() => {
-    if (!loading && focusedInputId) {
+    // 復元時や設定未選択時は何もしない
+    if (isRestored === null || !selectedConfigName) return;
+    // フィルター入力が完了したらページをリセット
+    // 簡易的な比較。厳密にはオブジェクト比較が必要な場合も
+    if (JSON.stringify(filter) !== JSON.stringify(debouncedFilter)) {
+      setPage(0);
+    }
+  }, [debouncedFilter, isRestored, selectedConfigName, filter]);
+
+  // Restore focus to filter input
+  useEffect(() => {
+    // ローディング中や、復元直後は何もしない
+    if (loading || isRestored === null) return;
+
+    if (focusedInputId && focusedInputId.startsWith('filter-')) {
       let inputToFocus: HTMLInputElement | null = null;
       switch (focusedInputId) {
         case 'filter-objectID':
@@ -205,10 +230,19 @@ function MessageResourceDisplay() {
           inputToFocus = messageInputRef.current; break;
       }
       if (inputToFocus) {
-        setTimeout(() => inputToFocus?.focus(), 0);
+        // console.log("Attempting to restore focus to:", focusedInputId);
+        setTimeout(() => {
+          inputToFocus?.focus();
+          // フォーカスを試みた後はクリアする
+          // setFocusedInputId(null);
+        }, 0);
+      } else {
+        // console.log("Input element not found for:", focusedInputId);
+        // setFocusedInputId(null); // 要素が見つからない場合もクリアした方が良いかも
       }
     }
-  }, [loading, focusedInputId]);
+    // isRestored も依存配列に追加して、復元直後にフォーカスが当たらないようにする
+  }, [loading, focusedInputId, isRestored]);
 
   // --- Derived State ---
   const selectedConfig = dbConfigs.find(c => c.name === selectedConfigName);
@@ -224,6 +258,25 @@ function MessageResourceDisplay() {
       alert("環境設定を選択してください");
       return;
     }
+
+    // sessionStorage に現在の状態を保存
+    const stateToSave: DisplayStateToSave = {
+      selectedConfigName,
+      page,
+      rowsPerPage,
+      filter,
+      selectedObjectIDs: Array.from(selectedObjectIDs),
+      messageIdMap
+    };
+    try {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(stateToSave));
+      console.log("State saved to sessionStorage:", stateToSave);
+    } catch (e) {
+      console.error("Failed to save state to sessionStorage", e);
+      alert("画面状態の保存に失敗しました。");
+      return;
+    }
+
 
     setActionLoading(true);
     try {
@@ -247,13 +300,10 @@ function MessageResourceDisplay() {
 
       const selectedLabelsData: SLocalizationLabel[] = await response.json();
 
-      const updatedLabels = selectedLabelsData.map(backendLabel => {
-        const messageIdValue = messageIdMap[backendLabel.objectID] || "";
-        return {
-          ...backendLabel,
-          messageId: messageIdValue,
-        };
-      });
+      const updatedLabels = selectedLabelsData.map(backendLabel => ({
+        ...backendLabel,
+        messageId: messageIdMap[backendLabel.objectID] || "",
+      }));
 
       navigate("/properties", {
         state: { labels: updatedLabels, languageMap: langMap }
@@ -262,6 +312,7 @@ function MessageResourceDisplay() {
     } catch (error: any) {
       console.error("選択データの取得または画面遷移エラー:", error);
       alert(error.message || "処理中にエラーが発生しました");
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
     } finally {
       setActionLoading(false);
     }
@@ -290,7 +341,7 @@ function MessageResourceDisplay() {
 
   const handleClearSelection = () => {
     setSelectedObjectIDs(new Set());
-    // setMessageIdMap({});
+    // setMessageIdMap({}); // 必要に応じてコメント解除
   };
 
   const handleSelectAllFiltered = async () => {
@@ -301,7 +352,8 @@ function MessageResourceDisplay() {
     setActionLoading(true);
     try {
       const { name, languageMap, ...configForBackend } = selectedConfig;
-      const requestBody = { ...configForBackend, filter: filter };
+      // ★ filter ではなく debouncedFilter を使う（ユーザー入力を待ってから実行）
+      const requestBody = { ...configForBackend, filter: debouncedFilter };
 
       const response = await fetch("http://localhost:8080/api/labels/fetch/ids", {
         method: "POST",
@@ -344,7 +396,7 @@ function MessageResourceDisplay() {
   // ページネーションハンドラ (表示件数変更)
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    setPage(0); // 表示件数変更時は必ず0ページ目に戻す
   };
 
   // テーブルヘッダー言語名取得ヘルパー
@@ -562,18 +614,14 @@ function MessageResourceDisplay() {
                           <TextField
                             variant="standard"
                             size="small"
-                            value={label.messageId ?? ""}
+                            // value は messageIdMap から取得
+                            value={messageIdMap[label.objectID] ?? ""}
                             placeholder={label.objectID}
+                            onFocus={(_e) => setFocusedInputId(null)} // フォーカス復元を抑制
                             onChange={(e) => {
                               const newValue = e.target.value;
                               const objectID = label.objectID;
-
-                              setLabels(currentLabels =>
-                                currentLabels.map(l =>
-                                  l.objectID === objectID ? { ...l, messageId: newValue } : l
-                                )
-                              );
-
+                              // messageIdMap のみ更新
                               setMessageIdMap(currentMap => ({
                                 ...currentMap,
                                 [objectID]: newValue,

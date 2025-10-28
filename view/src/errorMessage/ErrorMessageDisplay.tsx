@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom"; // useLocation をインポート
 import type { ErrorMessage } from "../types/ErrorMessage";
 import type { DbConfig } from "../types/DbConfig";
 import useDebounce from "../hooks/useDebounce";
 
+// MUI Components
 import {
   Container,
   Paper,
@@ -33,52 +34,74 @@ import ClearIcon from '@mui/icons-material/Clear';
 // APIレスポンス型
 interface PagedResponse<T> { content: T[]; totalElements: number; }
 
+// filter state の型を明示的に定義
+interface FilterState {
+  objectID: string;
+  errorNo: string;
+  errorType: string;
+  message: string;
+}
+
+// 保存する状態の型
+interface DisplayStateToSave {
+  selectedConfigName: string;
+  page: number;
+  rowsPerPage: number;
+  filter: FilterState; // typeof filter の代わりに FilterState を使用
+  selectedObjectIDs: string[]; // Set は JSON にできないため Array で保存
+}
+
 const LOCAL_STORAGE_KEY = "dbConfigs";
+const SESSION_STORAGE_KEY = "errorDisplayState"; // sessionStorage 用のキー
 const TABLE_AREA_MIN_HEIGHT_PX = 600;
 
 const ErrorMessageDisplay: React.FC = () => {
+  // --- States ---
+  // Context ではなくローカル state を使用
+  const [selectedConfigName, setSelectedConfigName] = useState<string>("");
+  const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
+
   const [messages, setMessages] = useState<ErrorMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const navigate = useNavigate();
-
   const [dbConfigs, setDbConfigs] = useState<DbConfig[]>([]);
-  const [selectedConfigName, setSelectedConfigName] = useState<string>("");
-
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [rowsPerPage, setRowsPerPage] = useState(25); // デフォルト値を25に変更
   const [totalCount, setTotalCount] = useState(0);
-
-  const [selectedObjectIDs, setSelectedObjectIDs] = useState(new Set<string>());
-
-  const [filter, setFilter] = useState({ objectID: "", errorNo: "", errorType: "", message: "" });
-  const debouncedFilter = useDebounce(filter, 500);
-
+  const [filter, setFilter] = useState<FilterState>({ // useState に FilterState 型を適用
+    objectID: "", errorNo: "", errorType: "", message: ""
+  });
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
+  const [isRestored, setIsRestored] = useState<boolean | null>(null); // 状態復元フラグ (初期値 null)
+
+  // --- Refs ---
   const objectIdInputRef = useRef<HTMLInputElement>(null);
   const errorNoInputRef = useRef<HTMLInputElement>(null);
   const errorTypeInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
 
-  // データ取得ロジック (useCallback の依存配列は dbConfigs のみ)
+  // --- Hooks ---
+  const navigate = useNavigate();
+  const location = useLocation(); // location を取得
+  const debouncedFilter = useDebounce(filter, 500);
+
+  // --- Data Fetching Logic ---
   const fetchData = useCallback(async (
     configName: string,
-    currentFilter: typeof filter,
+    currentFilter: FilterState, // 型を FilterState に変更
     currentPage: number,
-    currentSize: number,
-    shouldResetSelection: boolean = false
+    currentSize: number
   ) => {
     const selectedConfig = dbConfigs.find(c => c.name === configName);
-    if (!selectedConfig) {
-      setMessages([]);
-      setTotalCount(0);
-      setSelectedObjectIDs(new Set()); // ★ 設定がない場合もクリア
-      return;
-    }
+    if (!selectedConfig) return;
+
+    // フェッチ開始時にフォーカスIDクリア
+    // if (!focusedInputId?.startsWith('messageId-')) { // もしフィルター入力中にフェッチが走るなら
+    //    setFocusedInputId(null);
+    // }
     setLoading(true);
-    if (shouldResetSelection) {
-      setSelectedObjectIDs(new Set());
-    }
+    // リセット処理は useEffect に移動
+
     const { name, languageMap, ...configForBackend } = selectedConfig;
     const requestBody = { ...configForBackend, filter: currentFilter, page: currentPage, size: currentSize };
     try {
@@ -96,58 +119,103 @@ const ErrorMessageDisplay: React.FC = () => {
       alert(err.message || "エラーメッセージ取得失敗");
       setMessages([]);
       setTotalCount(0);
-      if (shouldResetSelection) setSelectedObjectIDs(new Set()); // ★ エラー時もリセット
+      // エラー時のリセットも selectedConfigName の useEffect で行う
     } finally {
       setLoading(false);
     }
-  }, [dbConfigs]); // ★ 依存配列は dbConfigs のみ
+  }, [dbConfigs]); // 依存配列は dbConfigs のみ
 
   // --- useEffect フック ---
 
-  // ローカルストレージからDB設定を読み込み
+  // Mount/Location Change: Load DB Configs and Restore State
   useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try { // ★ try-catch を追加
-        const configs: DbConfig[] = JSON.parse(saved);
-        setDbConfigs(configs);
+    // DB設定読み込み
+    const savedConfigs = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (savedConfigs) { try { setDbConfigs(JSON.parse(savedConfigs)); } catch (e) { console.error(e); } }
+
+    // sessionStorage から状態を復元
+    const savedStateString = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    let restored = false;
+    if (savedStateString) {
+      try {
+        const savedState: DisplayStateToSave = JSON.parse(savedStateString);
+        setSelectedConfigName(savedState.selectedConfigName);
+        setPage(savedState.page);
+        setRowsPerPage(savedState.rowsPerPage);
+        setFilter(savedState.filter);
+        setSelectedObjectIDs(new Set(savedState.selectedObjectIDs));
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        console.log("Error state restored from sessionStorage:", savedState);
+        restored = true;
       } catch (e) {
-        console.error("Failed to parse DB configs from localStorage", e);
+        console.error("Failed to parse error state from sessionStorage", e);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
       }
     }
-  }, []);
+    setIsRestored(restored); // 復元成否をマーク
 
-  // DB設定変更時にデータを取得 (選択状態をリセット)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
+
+  // Fetch data when parameters change AFTER initial load/restore is determined
   useEffect(() => {
+    // 復元処理が終わっていない場合は何もしない
+    if (isRestored === null) return;
+
+    // 設定が選択されていない場合
     if (!selectedConfigName) {
       setMessages([]);
       setTotalCount(0);
-      setSelectedObjectIDs(new Set());
+      // 復元されていない場合は選択もクリア
+      if (!isRestored) {
+        setSelectedObjectIDs(new Set());
+      }
       return;
     }
-    setPage(0); // DB設定変更時は0ページ目に戻す
-    fetchData(selectedConfigName, filter, 0, rowsPerPage, true); // ★ リセット true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConfigName]); // ★ 依存配列は selectedConfigName のみ
 
-  // フィルター変更時にデータを取得 (選択状態を保持)
+    // 状態復元直後 or パラメータ変更時にデータ取得
+    // debouncedFilter を使ってフェッチする
+    fetchData(selectedConfigName, debouncedFilter, page, rowsPerPage);
+
+  }, [selectedConfigName, debouncedFilter, page, rowsPerPage, isRestored, fetchData]);
+
+  // Debounced filter effect: reset page only
   useEffect(() => {
-    if (!selectedConfigName) return; // DB設定がない場合は何もしない
-    setPage(0); // フィルター変更時は0ページ目に戻す
-    // ★ 修正点: フィルター変更時は選択状態をリセットしない (false)
-    fetchData(selectedConfigName, debouncedFilter, 0, rowsPerPage, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedFilter]); // ★ 依存配列は debouncedFilter のみ
+    if (isRestored === null || !selectedConfigName) return;
+    // フィルター入力が完了したらページをリセット
+    // 簡易的な比較。厳密にはオブジェクト比較が必要な場合も
+    if (JSON.stringify(filter) !== JSON.stringify(debouncedFilter)) {
+      setPage(0);
+    }
+  }, [debouncedFilter, isRestored, selectedConfigName, filter]);
 
-  // ページネーション変更時にデータを取得 (選択状態を保持)
+  // フォーカス復元ロジック
   useEffect(() => {
-    if (!selectedConfigName) return; // DB設定がない場合は何もしない
-    fetchData(selectedConfigName, filter, page, rowsPerPage, false); // ★ リセット false
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage]); // ★ 依存配列は page, rowsPerPage のみ
+    // ローディング中や、復元直後は何もしない
+    if (loading || isRestored === null) return;
 
-  // フォーカス復元ロジック (変更なし)
-  useEffect(() => { if (!loading && focusedInputId) { let inputToFocus: HTMLInputElement | null = null; switch (focusedInputId) { case 'filter-error-objectID': inputToFocus = objectIdInputRef.current; break; case 'filter-errorNo': inputToFocus = errorNoInputRef.current; break; case 'filter-errorType': inputToFocus = errorTypeInputRef.current; break; case 'filter-errorMessage': inputToFocus = messageInputRef.current; break; } if (inputToFocus) setTimeout(() => inputToFocus?.focus(), 0); } }, [loading, focusedInputId]);
+    if (focusedInputId && focusedInputId.startsWith('filter-')) {
+      let inputToFocus: HTMLInputElement | null = null;
+      switch (focusedInputId) {
+        case 'filter-error-objectID': inputToFocus = objectIdInputRef.current; break;
+        case 'filter-errorNo': inputToFocus = errorNoInputRef.current; break;
+        case 'filter-errorType': inputToFocus = errorTypeInputRef.current; break;
+        case 'filter-errorMessage': inputToFocus = messageInputRef.current; break;
+      }
+      if (inputToFocus) {
+        // console.log("Attempting to restore focus to:", focusedInputId);
+        setTimeout(() => {
+          inputToFocus?.focus();
+          // フォーカスを試みた後はクリアする
+          // setFocusedInputId(null);
+        }, 0);
+      } else {
+        // console.log("Input element not found for:", focusedInputId);
+        // setFocusedInputId(null); // 要素が見つからない場合もクリアした方が良いかも
+      }
+    }
+  }, [loading, focusedInputId, isRestored]);
+
 
   // --- Derived State ---
   const selectedConfig = dbConfigs.find(c => c.name === selectedConfigName);
@@ -155,20 +223,57 @@ const ErrorMessageDisplay: React.FC = () => {
 
   // --- Handlers ---
 
-  // メインの変換ボタンハンドラ (変更なし)
-  const handleNavigateToConvert = async () => { if (selectedObjectIDs.size === 0) { alert("変換するデータが選択されていません"); return; } if (!selectedConfig) { alert("環境設定を選択してください"); return; } setActionLoading(true); try { const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { dbConfig: configForBackend, objectIDs: Array.from(selectedObjectIDs) }; const response = await fetch("http://localhost:8080/api/error-messages/fetch/by-ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), }); if (!response.ok) { throw new Error(`選択データの取得失敗 (HTTP ${response.status})`); } const selectedMessagesData: ErrorMessage[] = await response.json(); navigate("/error-messages-xml", { state: { messages: selectedMessagesData, languageMap: langMap } }); } catch (error: any) { console.error("選択データの取得または画面遷移エラー:", error); alert(error.message || "処理中にエラーが発生しました"); } finally { setActionLoading(false); } };
+  // メインの変換ボタンハンドラ
+  const handleNavigateToConvert = async () => {
+    if (selectedObjectIDs.size === 0 || !selectedConfig) {
+      alert(selectedObjectIDs.size === 0 ? "変換するデータが選択されていません" : "環境設定を選択してください");
+      return;
+    }
 
-  // 選択関連ハンドラ (変更なし)
+    // sessionStorage に現在の状態を保存
+    const stateToSave: DisplayStateToSave = {
+      selectedConfigName,
+      page,
+      rowsPerPage,
+      filter,
+      selectedObjectIDs: Array.from(selectedObjectIDs)
+    };
+    try { sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(stateToSave)); } catch (e) {
+      console.error("Failed to save state to sessionStorage", e);
+      alert("画面状態の保存に失敗しました。");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const { name, languageMap, ...configForBackend } = selectedConfig;
+      const requestBody = { dbConfig: configForBackend, objectIDs: Array.from(selectedObjectIDs) };
+      const response = await fetch("http://localhost:8080/api/error-messages/fetch/by-ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), });
+      if (!response.ok) {
+        throw new Error(`選択データの取得失敗 (HTTP ${response.status})`);
+      }
+      const selectedMessagesData: ErrorMessage[] = await response.json();
+      navigate("/error-messages-xml", { state: { messages: selectedMessagesData, languageMap: langMap } });
+    } catch (error: any) {
+      console.error("選択データの取得または画面遷移エラー:", error);
+      alert(error.message || "処理中にエラーが発生しました");
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 選択関連ハンドラ
   const handleToggleSelect = (objectID: string) => { setSelectedObjectIDs(prevSet => { const newSet = new Set(prevSet); if (newSet.has(objectID)) newSet.delete(objectID); else newSet.add(objectID); return newSet; }); };
   const handleSelectPage = () => { const currentPageObjectIDs = messages.map(m => m.objectID); setSelectedObjectIDs(prevSet => { const newSet = new Set(prevSet); currentPageObjectIDs.forEach(id => newSet.add(id)); return newSet; }); };
   const handleClearSelection = () => { setSelectedObjectIDs(new Set()); };
-  const handleSelectAllFiltered = async () => { if (!selectedConfig) { alert("環境設定を選択してください"); return; } setActionLoading(true); try { const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { ...configForBackend, filter: filter }; const response = await fetch("http://localhost:8080/api/error-messages/fetch/ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), }); if (!response.ok) { throw new Error(`全IDの取得失敗 (HTTP ${response.status})`); } const allIDs: string[] = await response.json(); setSelectedObjectIDs(new Set(allIDs)); } catch (error: any) { console.error("全ID取得エラー:", error); alert(error.message || "全件選択中にエラーが発生しました"); } finally { setActionLoading(false); } };
+  const handleSelectAllFiltered = async () => { if (!selectedConfig) { alert("環境設定を選択してください"); return; } setActionLoading(true); try { const { name, languageMap, ...configForBackend } = selectedConfig; const requestBody = { ...configForBackend, filter: debouncedFilter }; const response = await fetch("http://localhost:8080/api/error-messages/fetch/ids", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), }); if (!response.ok) { throw new Error(`全IDの取得失敗 (HTTP ${response.status})`); } const allIDs: string[] = await response.json(); setSelectedObjectIDs(new Set(allIDs)); } catch (error: any) { console.error("全ID取得エラー:", error); alert(error.message || "全件選択中にエラーが発生しました"); } finally { setActionLoading(false); } };
 
-  // フィルターハンドラ (変更なし)
+  // フィルターハンドラ
   const handleFilterFocus = (event: React.FocusEvent<HTMLInputElement>) => { setFocusedInputId(event.target.id); };
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => { const { name, value } = event.target; setFilter(prev => ({ ...prev, [name]: value })); };
 
-  // ページネーションハンドラ (変更なし)
+  // ページネーションハンドラ
   const handleChangePage = (_event: unknown, newPage: number) => { setPage(newPage); };
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(0); };
 
