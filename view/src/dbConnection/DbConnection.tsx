@@ -19,6 +19,9 @@ import {
   InputAdornment,
   Tabs,
   Tab,
+  Snackbar,
+  Alert,
+  type AlertColor
 } from "@mui/material";
 
 
@@ -36,6 +39,12 @@ const defaultLanguageMap: LanguageMap = {
   country5: "",
 };
 
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: AlertColor;
+}
+
 const DbConnection: React.FC = () => {
   const [configs, setConfigs] = useState<DbConfig[]>([]);
   const [currentConfig, setCurrentConfig] = useState<DbConfig>({
@@ -51,6 +60,12 @@ const DbConnection: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
 
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
+    open: false,
+    message: "",
+    severity: "info",
+  });
+
   useEffect(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
@@ -60,7 +75,7 @@ const DbConnection: React.FC = () => {
 
   const handleSave = () => {
     if (!currentConfig.name) {
-      alert("設定名を入力してください");
+      setSnackbar({ open: true, message: "設定名を入力してください", severity: "warning" });
       return;
     }
     const updatedConfigs = [
@@ -69,7 +84,7 @@ const DbConnection: React.FC = () => {
     ];
     setConfigs(updatedConfigs);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedConfigs));
-    alert("保存しました");
+    setSnackbar({ open: true, message: "保存しました", severity: "success" });
   };
 
   const handleSelect = (name: string) => {
@@ -92,11 +107,12 @@ const DbConnection: React.FC = () => {
     if (currentConfig.name === name) {
       handleNewSetting();
     }
+    setSnackbar({ open: true, message: `${name} を削除しました`, severity: "info" });
   };
 
   const handleTestConnection = async () => {
     if (currentConfig.port === "") {
-      alert("ポート番号を入力してください。");
+      setSnackbar({ open: true, message: "ポート番号を入力してください。", severity: "warning" });
       return;
     }
     try {
@@ -106,10 +122,13 @@ const DbConnection: React.FC = () => {
         body: JSON.stringify(currentConfig),
       });
       const result = await response.text();
-      alert(result);
-    } catch (error) {
-      alert("接続確認中にエラーが発生しました");
+      const severity: AlertColor = result === "接続成功" ? "success" : "error";
+      setSnackbar({ open: true, message: result, severity: severity });
+
+    } catch (error: any) {
       console.error(error);
+      const errorMessage = error?.message || "接続確認中にエラーが発生しました";
+      setSnackbar({ open: true, message: errorMessage, severity: "error" });
     }
   };
 
@@ -166,6 +185,14 @@ const DbConnection: React.FC = () => {
       },
     }));
   };
+
+  const handleCloseSnackbar = (_event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
 
   const renderForm = () => (
     <Paper elevation={3} sx={{ p: 3 }}>
@@ -338,7 +365,7 @@ const DbConnection: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4 }}>
       <Grid container spacing={3}>
-        <Grid size={{ xs: 8, md: 4 }}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Typography variant="h6" gutterBottom>
             保存済み設定
           </Typography>
@@ -371,6 +398,18 @@ const DbConnection: React.FC = () => {
           {renderForm()}
         </Grid>
       </Grid>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 8 }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled" elevation={6} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
