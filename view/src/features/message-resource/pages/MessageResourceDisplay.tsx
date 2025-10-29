@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import "../App.css"; // 必要であればスタイルを適用
-import type { DbConfig, LanguageMap } from "../types/DbConfig";
-import useDebounce from "../hooks/useDebounce";
+import "../../../styles/App.css";
+import type { DbConfig, LanguageMap } from "../../../types/DbConfig";
+import useDebounce from "../../../hooks/use-debounce";
 
 // MUI Components
 import {
@@ -30,9 +30,9 @@ import {
   IconButton,
   type SelectChangeEvent,
 } from "@mui/material";
-import SearchIcon from '@mui/icons-material/Search';
-import ClearIcon from '@mui/icons-material/Clear';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 
 // --- Type Definitions ---
 interface PagedResponse<T> {
@@ -67,7 +67,6 @@ interface DisplayStateToSave {
   messageIdMap: Record<string, string>;
 }
 
-
 // --- Constants ---
 const LOCAL_STORAGE_KEY = "dbConfigs";
 const SESSION_STORAGE_KEY = "messageDisplayState"; // sessionStorage 用のキー
@@ -87,10 +86,11 @@ function MessageResourceDisplay() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
-  const [filter, setFilter] = useState<FilterState>({ // useState に FilterState 型を適用
+  const [filter, setFilter] = useState<FilterState>({
+    // useState に FilterState 型を適用
     objectID: "",
     categoryName: "",
-    message: ""
+    message: "",
   });
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null); // To restore focus after re-render
   const [isRestored, setIsRestored] = useState<boolean | null>(null); // 状態復元フラグ (初期値 null)
@@ -106,57 +106,70 @@ function MessageResourceDisplay() {
   const debouncedFilter = useDebounce(filter, 500);
 
   // --- Data Fetching Logic ---
-  const fetchData = useCallback(async (
-    configName: string,
-    currentFilter: FilterState,
-    currentPage: number,
-    currentSize: number
-  ) => {
-    const selectedConfig = dbConfigs.find(c => c.name === configName);
-    if (!selectedConfig) return;
+  const fetchData = useCallback(
+    async (
+      configName: string,
+      currentFilter: FilterState,
+      currentPage: number,
+      currentSize: number,
+    ) => {
+      const selectedConfig = dbConfigs.find((c) => c.name === configName);
+      if (!selectedConfig) return;
 
-    // フェッチ開始時にフォーカスIDクリア (ただし、メッセージID入力欄編集中は維持する可能性も考慮)
-    // if (!focusedInputId?.startsWith('messageId-')) { // もしフィルター入力中にフェッチが走るなら
-    //    setFocusedInputId(null);
-    // }
-    setLoading(true);
+      // フェッチ開始時にフォーカスIDクリア (ただし、メッセージID入力欄編集中は維持する可能性も考慮)
+      // if (!focusedInputId?.startsWith('messageId-')) { // もしフィルター入力中にフェッチが走るなら
+      //    setFocusedInputId(null);
+      // }
+      setLoading(true);
 
-    const { name, languageMap, ...configForBackend } = selectedConfig;
-    const requestBody = { ...configForBackend, filter: currentFilter, page: currentPage, size: currentSize };
+      const { name, languageMap, ...configForBackend } = selectedConfig;
+      const requestBody = {
+        ...configForBackend,
+        filter: currentFilter,
+        page: currentPage,
+        size: currentSize,
+      };
 
-    try {
-      const response = await fetch("http://localhost:8080/api/labels/fetch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      try {
+        const response = await fetch("http://localhost:8080/api/labels/fetch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
 
-      if (!response.ok) {
-        throw new Error(`データ取得失敗 (HTTP ${response.status})`);
+        if (!response.ok) {
+          throw new Error(`データ取得失敗 (HTTP ${response.status})`);
+        }
+
+        const data: PagedResponse<SLocalizationLabel> = await response.json();
+        setLabels(data.content); // APIからのデータをそのままセット
+        setTotalCount(data.totalElements);
+        // messageIdMap はここでは更新しない (入力値は保持される)
+      } catch (error: any) {
+        console.error("Failed to fetch labels:", error);
+        alert(error.message || "データ取得に失敗しました");
+        setLabels([]);
+        setTotalCount(0);
+      } finally {
+        setLoading(false);
       }
-
-      const data: PagedResponse<SLocalizationLabel> = await response.json();
-      setLabels(data.content); // APIからのデータをそのままセット
-      setTotalCount(data.totalElements);
-      // messageIdMap はここでは更新しない (入力値は保持される)
-
-    } catch (error: any) {
-      console.error("Failed to fetch labels:", error);
-      alert(error.message || "データ取得に失敗しました");
-      setLabels([]);
-      setTotalCount(0);
-    } finally {
-      setLoading(false);
-    }
-    // dbConfigs の変更時のみ関数を再生成
-  }, [dbConfigs]);
+      // dbConfigs の変更時のみ関数を再生成
+    },
+    [dbConfigs],
+  );
 
   // --- Effects ---
   // Mount/Location Change: Load DB Configs and Restore State
   useEffect(() => {
     // DB設定読み込み
     const savedConfigs = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (savedConfigs) { try { setDbConfigs(JSON.parse(savedConfigs)); } catch (e) { console.error(e); } }
+    if (savedConfigs) {
+      try {
+        setDbConfigs(JSON.parse(savedConfigs));
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
     // sessionStorage から状態を復元
     const savedStateString = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -180,7 +193,7 @@ function MessageResourceDisplay() {
     }
     setIsRestored(restored); // 復元成否をマーク
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [location.key]); // ブラウザバックでもトリガー
 
   // Fetch data when parameters change AFTER initial load/restore is determined
@@ -203,8 +216,14 @@ function MessageResourceDisplay() {
     // 状態復元直後 or パラメータ変更時にデータ取得
     // debouncedFilter を使ってフェッチする
     fetchData(selectedConfigName, debouncedFilter, page, rowsPerPage);
-
-  }, [selectedConfigName, debouncedFilter, page, rowsPerPage, isRestored, fetchData]);
+  }, [
+    selectedConfigName,
+    debouncedFilter,
+    page,
+    rowsPerPage,
+    isRestored,
+    fetchData,
+  ]);
 
   // Debounced filter effect: reset page only
   useEffect(() => {
@@ -222,15 +241,18 @@ function MessageResourceDisplay() {
     // ローディング中や、復元直後は何もしない
     if (loading || isRestored === null) return;
 
-    if (focusedInputId && focusedInputId.startsWith('filter-')) {
+    if (focusedInputId && focusedInputId.startsWith("filter-")) {
       let inputToFocus: HTMLInputElement | null = null;
       switch (focusedInputId) {
-        case 'filter-objectID':
-          inputToFocus = objectIdInputRef.current; break;
-        case 'filter-categoryName':
-          inputToFocus = categoryInputRef.current; break;
-        case 'filter-message':
-          inputToFocus = messageInputRef.current; break;
+        case "filter-objectID":
+          inputToFocus = objectIdInputRef.current;
+          break;
+        case "filter-categoryName":
+          inputToFocus = categoryInputRef.current;
+          break;
+        case "filter-message":
+          inputToFocus = messageInputRef.current;
+          break;
       }
       if (inputToFocus) {
         // console.log("Attempting to restore focus to:", focusedInputId);
@@ -248,7 +270,7 @@ function MessageResourceDisplay() {
   }, [loading, focusedInputId, isRestored]);
 
   // --- Derived State ---
-  const selectedConfig = dbConfigs.find(c => c.name === selectedConfigName);
+  const selectedConfig = dbConfigs.find((c) => c.name === selectedConfigName);
   const langMap = selectedConfig?.languageMap;
 
   // --- Handlers ---
@@ -269,7 +291,7 @@ function MessageResourceDisplay() {
       rowsPerPage,
       filter,
       selectedObjectIDs: Array.from(selectedObjectIDs),
-      messageIdMap
+      messageIdMap,
     };
     try {
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(stateToSave));
@@ -280,38 +302,42 @@ function MessageResourceDisplay() {
       return;
     }
 
-
     setActionLoading(true);
     try {
       const { name, languageMap, ...configForBackend } = selectedConfig;
       const requestBody = {
         dbConfig: configForBackend,
-        objectIDs: Array.from(selectedObjectIDs)
+        objectIDs: Array.from(selectedObjectIDs),
       };
 
-      const response = await fetch("http://localhost:8080/api/labels/fetch/by-ids", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await fetch(
+        "http://localhost:8080/api/labels/fetch/by-ids",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        },
+      );
 
       if (!response.ok) {
         let errorText = `選択データの取得失敗 (HTTP ${response.status})`;
-        try { const errorData = await response.text(); if (errorData) errorText += `: ${errorData}`; } catch (_) { }
+        try {
+          const errorData = await response.text();
+          if (errorData) errorText += `: ${errorData}`;
+        } catch (_) { }
         throw new Error(errorText);
       }
 
       const selectedLabelsData: SLocalizationLabel[] = await response.json();
 
-      const updatedLabels = selectedLabelsData.map(backendLabel => ({
+      const updatedLabels = selectedLabelsData.map((backendLabel) => ({
         ...backendLabel,
         messageId: messageIdMap[backendLabel.objectID] || "",
       }));
 
       navigate("/properties", {
-        state: { labels: updatedLabels, languageMap: langMap }
+        state: { labels: updatedLabels, languageMap: langMap },
       });
-
     } catch (error: any) {
       console.error("選択データの取得または画面遷移エラー:", error);
       alert(error.message || "処理中にエラーが発生しました");
@@ -322,7 +348,7 @@ function MessageResourceDisplay() {
   };
 
   const handleToggleSelect = (objectID: string) => {
-    setSelectedObjectIDs(prevSet => {
+    setSelectedObjectIDs((prevSet) => {
       const newSet = new Set(prevSet);
       if (newSet.has(objectID)) {
         newSet.delete(objectID);
@@ -334,10 +360,10 @@ function MessageResourceDisplay() {
   };
 
   const handleSelectPage = () => {
-    const currentPageObjectIDs = labels.map(l => l.objectID);
-    setSelectedObjectIDs(prevSet => {
+    const currentPageObjectIDs = labels.map((l) => l.objectID);
+    setSelectedObjectIDs((prevSet) => {
       const newSet = new Set(prevSet);
-      currentPageObjectIDs.forEach(id => newSet.add(id));
+      currentPageObjectIDs.forEach((id) => newSet.add(id));
       return newSet;
     });
   };
@@ -358,20 +384,25 @@ function MessageResourceDisplay() {
       // ★ filter ではなく debouncedFilter を使う（ユーザー入力を待ってから実行）
       const requestBody = { ...configForBackend, filter: debouncedFilter };
 
-      const response = await fetch("http://localhost:8080/api/labels/fetch/ids", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await fetch(
+        "http://localhost:8080/api/labels/fetch/ids",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        },
+      );
 
       if (!response.ok) {
         let errorText = `全IDの取得失敗 (HTTP ${response.status})`;
-        try { const errorData = await response.text(); if (errorData) errorText += `: ${errorData}`; } catch (_) { }
+        try {
+          const errorData = await response.text();
+          if (errorData) errorText += `: ${errorData}`;
+        } catch (_) { }
         throw new Error(errorText);
       }
       const allIDs: string[] = await response.json();
       setSelectedObjectIDs(new Set(allIDs));
-
     } catch (error: any) {
       console.error("Error fetching all filtered IDs:", error);
       alert(error.message || "全件選択中にエラーが発生しました");
@@ -388,17 +419,23 @@ function MessageResourceDisplay() {
   // フィルター入力ハンドラ (値更新)
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
-    setFilter(prev => ({ ...prev, [name]: value }));
+    setFilter((prev) => ({ ...prev, [name]: value }));
   };
 
   //フィルタークリアボタンのハンドラ
   const handleClearFilterField = (fieldName: keyof FilterState) => {
-    setFilter(prev => ({ ...prev, [fieldName]: '' }));
+    setFilter((prev) => ({ ...prev, [fieldName]: "" }));
     // 対応する input 要素にフォーカスを戻す
     switch (fieldName) {
-      case 'objectID': objectIdInputRef.current?.focus(); break;
-      case 'categoryName': categoryInputRef.current?.focus(); break;
-      case 'message': messageInputRef.current?.focus(); break;
+      case "objectID":
+        objectIdInputRef.current?.focus();
+        break;
+      case "categoryName":
+        categoryInputRef.current?.focus();
+        break;
+      case "message":
+        messageInputRef.current?.focus();
+        break;
     }
   };
 
@@ -408,7 +445,9 @@ function MessageResourceDisplay() {
   };
 
   // ページネーションハンドラ (表示件数変更)
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0); // 表示件数変更時は必ず0ページ目に戻す
   };
@@ -417,9 +456,10 @@ function MessageResourceDisplay() {
   const getLangHeader = (key: keyof LanguageMap): string => {
     const mappedName = langMap?.[key];
     const defaultName = key.charAt(0).toUpperCase() + key.slice(1);
-    return (mappedName && mappedName.trim() !== '') ? `${mappedName} (${defaultName})` : defaultName;
-  }
-
+    return mappedName && mappedName.trim() !== ""
+      ? `${mappedName} (${defaultName})`
+      : defaultName;
+  };
 
   // --- Render ---
   return (
@@ -427,17 +467,25 @@ function MessageResourceDisplay() {
       <Typography variant="h5" component="h2" gutterBottom>
         メッセージリソース変換
       </Typography>
-      <Paper elevation={3} sx={{ p: 3, overflowX: 'auto' }}>
-
+      <Paper elevation={3} sx={{ p: 3, overflowX: "auto" }}>
         {/* --- Top Action Button --- */}
-        <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
           <Tooltip title="チェックボックスで選択したすべての項目（複数ページにまたがる場合も含む）を変換画面に送ります">
             <span>
               <Button
                 size="large"
                 variant="contained"
                 onClick={handleNavigateToConvert}
-                disabled={selectedObjectIDs.size === 0 || loading || actionLoading}
+                disabled={
+                  selectedObjectIDs.size === 0 || loading || actionLoading
+                }
               >
                 選択した{selectedObjectIDs.size}件を変換
               </Button>
@@ -453,24 +501,37 @@ function MessageResourceDisplay() {
               labelId="db-config-select-label"
               label="環境設定"
               value={selectedConfigName}
-              onChange={(e: SelectChangeEvent<string>) => setSelectedConfigName(e.target.value)}
+              onChange={(e: SelectChangeEvent<string>) =>
+                setSelectedConfigName(e.target.value)
+              }
               disabled={loading || actionLoading}
             >
-              <MenuItem value=""><em>-- 選択してください --</em></MenuItem>
-              {dbConfigs.map(config => (
+              <MenuItem value="">
+                <em>-- 選択してください --</em>
+              </MenuItem>
+              {dbConfigs.map((config) => (
                 <MenuItem key={config.name} value={config.name}>
                   {config.name}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
-          {(loading || actionLoading) && <CircularProgress size={24} sx={{ ml: 2 }} />}
+          {(loading || actionLoading) && (
+            <CircularProgress size={24} sx={{ ml: 2 }} />
+          )}
         </Box>
 
         {/* --- Filter Inputs --- */}
         <Paper
           elevation={1}
-          sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2, flexWrap: 'wrap' }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            mb: 2,
+            p: 2,
+            flexWrap: "wrap",
+          }}
         >
           <SearchIcon color="action" sx={{ mr: 1, flexShrink: 0 }} />
           <TextField
@@ -480,7 +541,7 @@ function MessageResourceDisplay() {
             label="ObjectID"
             variant="outlined"
             size="small"
-            sx={{ flexGrow: 1, minWidth: '150px' }}
+            sx={{ flexGrow: 1, minWidth: "150px" }}
             value={filter.objectID}
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
@@ -490,7 +551,7 @@ function MessageResourceDisplay() {
                 <InputAdornment position="end">
                   <IconButton
                     aria-label="clear objectID filter"
-                    onClick={() => handleClearFilterField('objectID')}
+                    onClick={() => handleClearFilterField("objectID")}
                     edge="end"
                     size="small"
                   >
@@ -507,7 +568,7 @@ function MessageResourceDisplay() {
             label="Category"
             variant="outlined"
             size="small"
-            sx={{ flexGrow: 1, minWidth: '150px' }}
+            sx={{ flexGrow: 1, minWidth: "150px" }}
             value={filter.categoryName}
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
@@ -517,7 +578,7 @@ function MessageResourceDisplay() {
                 <InputAdornment position="end">
                   <IconButton
                     aria-label="clear categoryName filter"
-                    onClick={() => handleClearFilterField('categoryName')}
+                    onClick={() => handleClearFilterField("categoryName")}
                     edge="end"
                     size="small"
                   >
@@ -534,7 +595,7 @@ function MessageResourceDisplay() {
             label="メッセージ"
             variant="outlined"
             size="small"
-            sx={{ flexGrow: 2, minWidth: '200px' }}
+            sx={{ flexGrow: 2, minWidth: "200px" }}
             value={filter.message}
             onChange={handleFilterChange}
             onFocus={handleFilterFocus}
@@ -544,7 +605,7 @@ function MessageResourceDisplay() {
                 <InputAdornment position="end">
                   <IconButton
                     aria-label="clear message filter"
-                    onClick={() => handleClearFilterField('message')}
+                    onClick={() => handleClearFilterField("message")}
                     edge="end"
                     size="small"
                   >
@@ -558,10 +619,24 @@ function MessageResourceDisplay() {
 
         {/* --- Pagination (Left) & Selection Actions (Right) --- */}
         <Box
-          sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, minHeight: '52px', flexWrap: 'wrap', gap: 2 }}
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 1,
+            minHeight: "52px",
+            flexWrap: "wrap",
+            gap: 2,
+          }}
         >
           {/* Left: Pagination */}
-          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: { xs: 'center', md: 'flex-start' } }}>
+          <Box
+            sx={{
+              flexGrow: 1,
+              display: "flex",
+              justifyContent: { xs: "center", md: "flex-start" },
+            }}
+          >
             {totalCount > 0 && !loading && (
               <TablePagination
                 rowsPerPageOptions={[10, 25, 50, 100]}
@@ -572,15 +647,31 @@ function MessageResourceDisplay() {
                 onPageChange={handleChangePage}
                 onRowsPerPageChange={handleChangeRowsPerPage}
                 labelRowsPerPage="表示件数:"
-                sx={{ '.MuiTablePagination-toolbar': { pl: { xs: 0, sm: 2 } }, '.MuiTablePagination-spacer': { display: { xs: 'none', sm: 'block' } } }}
+                sx={{
+                  ".MuiTablePagination-toolbar": { pl: { xs: 0, sm: 2 } },
+                  ".MuiTablePagination-spacer": {
+                    display: { xs: "none", sm: "block" },
+                  },
+                }}
               />
             )}
           </Box>
 
           {/* Right: Selection Buttons & Count */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              flexShrink: 0,
+            }}
+          >
             {selectedConfigName && (
-              <Typography variant="body2" color="text.secondary" sx={{ minWidth: '100px', textAlign: 'right', mr: 1 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ minWidth: "100px", textAlign: "right", mr: 1 }}
+              >
                 合計 <strong>{selectedObjectIDs.size}</strong> 件選択中
               </Typography>
             )}
@@ -588,7 +679,12 @@ function MessageResourceDisplay() {
             <Button
               variant="outlined"
               onClick={handleSelectPage}
-              disabled={labels.length === 0 || loading || actionLoading || !selectedConfigName}
+              disabled={
+                labels.length === 0 ||
+                loading ||
+                actionLoading ||
+                !selectedConfigName
+              }
             >
               このページを選択
             </Button>
@@ -598,7 +694,12 @@ function MessageResourceDisplay() {
                 <Button
                   variant="outlined"
                   onClick={handleSelectAllFiltered}
-                  disabled={totalCount === 0 || loading || actionLoading || !selectedConfigName}
+                  disabled={
+                    totalCount === 0 ||
+                    loading ||
+                    actionLoading ||
+                    !selectedConfigName
+                  }
                 >
                   全件選択
                 </Button>
@@ -609,11 +710,16 @@ function MessageResourceDisplay() {
               <span>
                 <Button
                   onClick={handleClearSelection}
-                  disabled={selectedObjectIDs.size === 0 || loading || actionLoading || !selectedConfigName}
+                  disabled={
+                    selectedObjectIDs.size === 0 ||
+                    loading ||
+                    actionLoading ||
+                    !selectedConfigName
+                  }
                   color="error"
                   variant="text"
                   startIcon={<ClearIcon fontSize="small" />}
-                  sx={{ minWidth: 'auto', padding: '5px 6px', ml: 1 }}
+                  sx={{ minWidth: "auto", padding: "5px 6px", ml: 1 }}
                 >
                   選択クリア
                 </Button>
@@ -624,7 +730,16 @@ function MessageResourceDisplay() {
 
         {/* --- Loading Overlay --- */}
         {(loading || actionLoading) && (
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: 'center', p: 4, minHeight: TABLE_AREA_MIN_HEIGHT_PX, opacity: 0.5 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              p: 4,
+              minHeight: TABLE_AREA_MIN_HEIGHT_PX,
+              opacity: 0.5,
+            }}
+          >
             <CircularProgress />
           </Box>
         )}
@@ -637,22 +752,42 @@ function MessageResourceDisplay() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell padding="checkbox" sx={{ width: '60px' }}></TableCell>
+                      <TableCell
+                        padding="checkbox"
+                        sx={{ width: "60px" }}
+                      ></TableCell>
                       <TableCell sx={{ minWidth: 170 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
                           メッセージID(任意)
                           <Tooltip title="Propertiesファイルのキーとして使用するIDです。未入力の場合はObjectIDが使用されます。">
-                            <HelpOutlineIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+                            <HelpOutlineIcon
+                              sx={{
+                                fontSize: "1rem",
+                                ml: 0.5,
+                                color: "text.secondary",
+                                cursor: "help",
+                              }}
+                            />
                           </Tooltip>
                         </Box>
                       </TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Object ID</TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Category</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>{getLangHeader('country1')}</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>{getLangHeader('country2')}</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>{getLangHeader('country3')}</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>{getLangHeader('country4')}</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>{getLangHeader('country5')}</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>
+                        {getLangHeader("country1")}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>
+                        {getLangHeader("country2")}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>
+                        {getLangHeader("country3")}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>
+                        {getLangHeader("country4")}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>
+                        {getLangHeader("country5")}
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -664,7 +799,7 @@ function MessageResourceDisplay() {
                         tabIndex={-1}
                         selected={selectedObjectIDs.has(label.objectID)}
                         onClick={() => handleToggleSelect(label.objectID)}
-                        sx={{ cursor: 'pointer' }}
+                        sx={{ cursor: "pointer" }}
                       >
                         <TableCell padding="checkbox">
                           <Checkbox
@@ -684,7 +819,7 @@ function MessageResourceDisplay() {
                               const newValue = e.target.value;
                               const objectID = label.objectID;
                               // messageIdMap のみ更新
-                              setMessageIdMap(currentMap => ({
+                              setMessageIdMap((currentMap) => ({
                                 ...currentMap,
                                 [objectID]: newValue,
                               }));
@@ -706,9 +841,19 @@ function MessageResourceDisplay() {
               </TableContainer>
             ) : (
               // No Data Message
-              <Box sx={{ display: "flex", justifyContent: "center", alignItems: 'center', p: 4, minHeight: TABLE_AREA_MIN_HEIGHT_PX }}>
-                <Typography sx={{ p: 4, textAlign: 'center' }}>
-                  {totalCount > 0 ? "このページにはデータがありません。" : "検索条件に一致するデータがありません。"}
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  p: 4,
+                  minHeight: TABLE_AREA_MIN_HEIGHT_PX,
+                }}
+              >
+                <Typography sx={{ p: 4, textAlign: "center" }}>
+                  {totalCount > 0
+                    ? "このページにはデータがありません。"
+                    : "検索条件に一致するデータがありません。"}
                 </Typography>
               </Box>
             )}
@@ -717,8 +862,18 @@ function MessageResourceDisplay() {
 
         {/* --- DB Not Selected Message --- */}
         {!loading && !actionLoading && !selectedConfigName && (
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: 'center', p: 4, minHeight: TABLE_AREA_MIN_HEIGHT_PX }}>
-            <Typography sx={{ fontSize: "1.3rem", p: 4, textAlign: 'center', mb: 20 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              p: 4,
+              minHeight: TABLE_AREA_MIN_HEIGHT_PX,
+            }}
+          >
+            <Typography
+              sx={{ fontSize: "1.3rem", p: 4, textAlign: "center", mb: 20 }}
+            >
               環境設定を選択してください
             </Typography>
           </Box>

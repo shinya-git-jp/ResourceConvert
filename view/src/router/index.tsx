@@ -1,14 +1,13 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import "../index.css";
-import Home from "../home";
-import DbConnection from '../dbConnection/DbConnection';
-import MessageResourceDisplay  from "../message/MessageResourceDisplay";
-import { MessageResourceConvert } from "../message/MessageResourceConvert";
-import ErrorMessageDisplay from "../errorMessage/ErrorMessageDisplay";
-import ErrorMessageConvert from "../errorMessage/ErrorMessageConvert";
-
-import AppMenu from '../menu/AppMenu';
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import "../styles/index.css";
+import Home from "../pages/home/Home";
+import DbConnection from "../pages/db-connection/DbConnection";
+import MessageResourceDisplay from "../features/message-resource/pages/MessageResourceDisplay";
+import { MessageResourceConvert } from "../features/message-resource/pages/MessageResourceConvert";
+import ErrorMessageDisplay from "../features/error-message/pages/ErrorMessageDisplay";
+import ErrorMessageConvert from "../features/error-message/pages/ErrorMessageConvert";
+import AppMenu from "../components/app-menu/AppMenu";
 
 const Router: React.FC = () => {
   return (
@@ -17,7 +16,10 @@ const Router: React.FC = () => {
         <Route path="/" element={<AppMenu />}>
           <Route index element={<Home />} />
           <Route path="/db-connection" element={<DbConnection />} />
-          <Route path="/message-resource" element={<MessageResourceDisplay />} />
+          <Route
+            path="/message-resource"
+            element={<MessageResourceDisplay />}
+          />
           <Route path="/properties" element={<MessageResourceConvert />} />
           <Route path="/error-messages" element={<ErrorMessageDisplay />} />
           <Route path="/error-messages-xml" element={<ErrorMessageConvert />} />
