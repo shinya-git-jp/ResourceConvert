@@ -82,19 +82,29 @@ const MainLayout: React.FC = () => {
           </IconButton>
 
           <Box
-            component="img"
-            src="/icon.png"
-            alt="icon"
+            onClick={() => handleNavigation('/')}
             sx={{
-              height: 'auto',
-              width: 80,
-              mr: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+              flexGrow: 1,
             }}
-          />
+          >
+            <Box
+              component="img"
+              src="/icon.png"
+              alt="icon"
+              sx={{
+                height: 'auto',
+                width: 80,
+                mr: 1.5,
+              }}
+            />
 
-          <Typography variant="h6" noWrap component="div">
-            Resource Convert
-          </Typography>
+            <Typography variant="h6" noWrap component="div">
+              Resource Convert
+            </Typography>
+          </Box>
         </Toolbar>
       </AppBar>
 
@@ -123,7 +133,7 @@ const MainLayout: React.FC = () => {
         }}
       >
         <Toolbar /> {/* AppBarの高さ分だけスペースを空ける */}
-        
+
         <Outlet />
       </Box>
     </Box>
