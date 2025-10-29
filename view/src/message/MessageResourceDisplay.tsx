@@ -32,6 +32,7 @@ import {
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 
 // --- Type Definitions ---
 interface PagedResponse<T> {
@@ -637,7 +638,14 @@ function MessageResourceDisplay() {
                   <TableHead>
                     <TableRow>
                       <TableCell padding="checkbox" sx={{ width: '60px' }}></TableCell>
-                      <TableCell sx={{ minWidth: 170 }}>メッセージID（任意）</TableCell>
+                      <TableCell sx={{ minWidth: 170 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          メッセージID(任意)
+                          <Tooltip title="Propertiesファイルのキーとして使用するIDです。未入力の場合はObjectIDが使用されます。">
+                            <HelpOutlineIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Object ID</TableCell>
                       <TableCell sx={{ minWidth: 150 }}>Category</TableCell>
                       <TableCell sx={{ minWidth: 200 }}>{getLangHeader('country1')}</TableCell>
@@ -669,7 +677,6 @@ function MessageResourceDisplay() {
                           <TextField
                             variant="standard"
                             size="small"
-                            // value は messageIdMap から取得
                             value={messageIdMap[label.objectID] ?? ""}
                             placeholder={label.objectID}
                             onFocus={(_e) => setFocusedInputId(null)} // フォーカス復元を抑制

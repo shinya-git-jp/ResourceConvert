@@ -48,7 +48,7 @@ const DbConnection: React.FC = () => {
     password: "",
     languageMap: defaultLanguageMap,
   });
-  const [showPassword, setShowPassword] = useState(false); 
+  const [showPassword, setShowPassword] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
 
   useEffect(() => {
@@ -96,8 +96,8 @@ const DbConnection: React.FC = () => {
 
   const handleTestConnection = async () => {
     if (currentConfig.port === "") {
-        alert("ポート番号を入力してください。");
-        return;
+      alert("ポート番号を入力してください。");
+      return;
     }
     try {
       const response = await fetch("http://localhost:8080/api/db/test", {
@@ -129,32 +129,32 @@ const DbConnection: React.FC = () => {
 
   // フォーム入力の汎用ハンドラ
   const handleChange = (
-  e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> |
-  { target: { name: string; value: unknown } }
-) => {
-  const { name, value } = e.target;
-  let processedValue: string | number | unknown = value;
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> |
+    { target: { name: string; value: unknown } }
+  ) => {
+    const { name, value } = e.target;
+    let processedValue: string | number | unknown = value;
 
-  if (name === "port") {
+    if (name === "port") {
       if (value === "") {
         processedValue = "";
       } else {
-         const numValue = Number(value);
-         if (!isNaN(numValue)) {
-            processedValue = numValue;
-         } else {
-            processedValue = value;
-         }
+        const numValue = Number(value);
+        if (!isNaN(numValue)) {
+          processedValue = numValue;
+        } else {
+          processedValue = value;
+        }
       }
     } else if (name === "dbType") {
-       processedValue = value as string;
+      processedValue = value as string;
     }
 
-  setCurrentConfig({
-    ...currentConfig,
-    [name]: processedValue as any,
-  });
-};
+    setCurrentConfig({
+      ...currentConfig,
+      [name]: processedValue as any,
+    });
+  };
 
   const handleLanguageMapChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -201,7 +201,7 @@ const DbConnection: React.FC = () => {
             value={currentConfig.name}
             onChange={handleChange}
           />
-          
+
           <FormControl fullWidth margin="normal">
             <InputLabel id="db-type-label">データベースタイプ</InputLabel>
             <Select
@@ -219,7 +219,7 @@ const DbConnection: React.FC = () => {
           </FormControl>
 
           <Grid container spacing={2}>
-            <Grid size={{xs:8}}>
+            <Grid size={{ xs: 8 }}>
               <TextField
                 fullWidth
                 margin="normal"
@@ -229,7 +229,7 @@ const DbConnection: React.FC = () => {
                 onChange={handleChange}
               />
             </Grid>
-            <Grid size={{xs:4}}>
+            <Grid size={{ xs: 4 }}>
               <TextField
                 fullWidth
                 margin="normal"
@@ -241,7 +241,7 @@ const DbConnection: React.FC = () => {
               />
             </Grid>
           </Grid>
-          
+
           <TextField
             fullWidth
             margin="normal"
@@ -250,7 +250,7 @@ const DbConnection: React.FC = () => {
             value={currentConfig.dbName}
             onChange={handleChange}
           />
-          
+
           <TextField
             fullWidth
             margin="normal"
@@ -259,7 +259,7 @@ const DbConnection: React.FC = () => {
             value={currentConfig.username}
             onChange={handleChange}
           />
-          
+
           <TextField
             fullWidth
             margin="normal"
@@ -338,7 +338,7 @@ const DbConnection: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4 }}>
       <Grid container spacing={3}>
-        <Grid size={{xs:8, md:4}}>
+        <Grid size={{ xs: 8, md: 4 }}>
           <Typography variant="h6" gutterBottom>
             保存済み設定
           </Typography>
@@ -367,7 +367,7 @@ const DbConnection: React.FC = () => {
           </Paper>
         </Grid>
 
-        <Grid size ={{xs:12,md:8}}>
+        <Grid size={{ xs: 12, md: 8 }}>
           {renderForm()}
         </Grid>
       </Grid>
